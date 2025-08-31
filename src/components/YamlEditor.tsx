@@ -6,7 +6,12 @@ import { CodeEditor, useStyles2 } from '@grafana/ui';
 
 export const YamlEditor = (props: any) => {
   const styles = useStyles2(getStyles);
+<<<<<<< HEAD
   let resizeObs: any
+=======
+  let resizeObs: any, global_editor: any
+
+>>>>>>> 833c791 (yaml_editor)
 
   function handleEditorDidMount(editor: any, monaco: any) {
     editor._domElement.style.overflow='auto'
@@ -15,6 +20,10 @@ export const YamlEditor = (props: any) => {
     resizeObs = new ResizeObserver( entries => {
       editor.getDomNode().parentNode.parentNode.parentNode.style.height = editor.getDomNode().clientHeight + 2 + 'px'
     })
+<<<<<<< HEAD
+=======
+    global_editor = editor
+>>>>>>> 833c791 (yaml_editor)
     resizeObs.observe(editor._domElement)
   }
 
@@ -29,7 +38,11 @@ export const YamlEditor = (props: any) => {
         showMiniMap={false}
         showLineNumbers={false}
         readOnly={false}
+<<<<<<< HEAD
         onBlur={props.onChange}
+=======
+        onChange={props.onChange}
+>>>>>>> 833c791 (yaml_editor)
         monacoOptions={{ 
           automaticLayout: true
         }}
