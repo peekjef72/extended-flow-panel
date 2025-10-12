@@ -1,6 +1,6 @@
 {
-  "name": "flow",
-  "version": "1.18.5",
+  "name": "flow-extended",
+  "version": "1.19.0",
   "description": "Svg flowchart visualization",
   "scripts": {
     "build": "webpack -c ./webpack.config.ts --env production",
@@ -42,6 +42,7 @@
     "identity-obj-proxy": "3.0.0",
     "jest": "^29.5.0",
     "jest-environment-jsdom": "^29.5.0",
+    "npm-build-zip": "^1.0.4",
     "prettier": "^2.8.7",
     "replace-in-file-webpack-plugin": "^1.0.6",
     "sass": "1.63.2",

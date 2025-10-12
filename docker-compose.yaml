@@ -2,15 +2,19 @@ version: '3.0'
 
 services:
   grafana:
+    # user: root
     container_name: 'andrewbmchugh-flow-panel'
     platform: 'linux/amd64'
     build:
       context: ./.config
       args:
-        grafana_image: ${GRAFANA_IMAGE:-grafana-enterprise}
-        grafana_version: ${GRAFANA_VERSION:-10.0.0}
+        grafana_image: ${GRAFANA_IMAGE:-grafana-oss}
+        # grafana_version: ${GRAFANA_VERSION:-10.0.0}
+        development: ${DEVELOPMENT:-false}
+        anonymous_auth_enabled: ${ANONYMOUS_AUTH_ENABLED:-true}
+
     ports:
-      - 3000:3000/tcp
+      - 3001:3000/tcp
     volumes:
-      - ./dist:/var/lib/grafana/plugins/andrewbmchugh-flow-panel
-      - ./provisioning:/etc/grafana/provisioning
+      - ./dist:/var/lib/grafana/plugins/andrewbmchugh-flow-panel:z
+      - ./provisioning:/etc/grafana/provisioning:z
