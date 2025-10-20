@@ -2,7 +2,7 @@ version: '3.0'
 
 services:
   grafana:
-    container_name: 'andrewbmchugh-flow-panel'
+    container_name: 'jfpik-flow-panel'
     platform: 'linux/amd64'
     build:
       context: ./.config
@@ -10,7 +10,7 @@ services:
         grafana_image: ${GRAFANA_IMAGE:-grafana-enterprise}
         grafana_version: ${GRAFANA_VERSION:-10.0.0}
     ports:
-      - 3000:3000/tcp
+      - 3001:3000/tcp
     volumes:
-      - ./dist:/var/lib/grafana/plugins/andrewbmchugh-flow-panel
+      - ./dist:/var/lib/grafana/plugins/jfpik-flow-panel
       - ./provisioning:/etc/grafana/provisioning

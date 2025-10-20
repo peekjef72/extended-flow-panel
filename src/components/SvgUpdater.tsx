@@ -6,7 +6,7 @@ import {
   PanelConfig, PanelConfigCell, PanelConfigCellColor,
   PanelConfigCellColorCompound,
   PanelConfigCellFillLevel, PanelConfigCellFlowAnimation, PanelConfigCellLabel,
-  PanelConfigElementFilter,
+  PanelConfigElementFilter, PanelConfigTooltipsElement,
   SiteConfig, VariableThresholdScalars } from 'components/Config';
 import { TimeSeriesData } from 'components/TimeSeries';
 import {
@@ -18,6 +18,7 @@ import {
   CellFillLevelDriver, getClipper, isFillLevelElement } from 'components/FillLevel';
 import { getTemplateSrv } from '@grafana/runtime';
 import { attribDriverManager, bespokeDriveHandlerFactory, ScopedState, CellBespokeHandler, getBespokeData } from './bespokeDriver';
+import { sanitize } from 'dompurify';
 
 // Defines the metadata stored against each drivable svg cell
 export type SvgCell = {
@@ -31,6 +32,9 @@ export type SvgCell = {
   cellProps: PanelConfigCell;
   variableThresholdScalars: Map<string, VariableThresholdScalars[]>;
   style: HTMLElement;
+  tooltipContent: string;
+  tooltipVars: Map<string, { element: PanelConfigTooltipsElement | null, value: any, color: any }>;
+
 };
 
 export type SvgElementAttribs = {
@@ -230,7 +234,8 @@ function recurseElements(level: number, el: HTMLElement, cellData: SvgCell, cell
   return false;
 }
 
-export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig: PanelConfig, siteConfig: SiteConfig):  SvgAttribs {
+export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig: PanelConfig, siteConfig: SiteConfig, 
+  ):  SvgAttribs {
   let cells = new Map<string, SvgCell>();
   const cellIdPreamble = panelConfig.cellIdPreamble;
   const namespaceState = new Map<string, ScopedState>();
@@ -252,6 +257,8 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
         cellProps: cellProps,
         style: doc.createElement("style"),
         variableThresholdScalars: new Map<string, VariableThresholdScalars[]>(),
+        tooltipContent: '',
+        tooltipVars: new Map<string, { element: PanelConfigTooltipsElement | null, value: any, color: any }>(),
       };
       cells.set(cellIdShort, cell);
 
@@ -268,8 +275,41 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
         el.prepend(addition);
       }
       // insert style element for label blink animation
-      cell.style.setAttribute("id", cellId)
-      el.insertAdjacentElement('afterbegin', cell.style)
+      cell.style.setAttribute("id", cellId+'_style');
+      el.insertAdjacentElement('afterbegin', cell.style);
+
+      // build map for known variables in format and elements
+      if (cellProps.tooltips) {
+        if (!cellProps.tooltips.format || cellProps.tooltips.format === '' || cellProps.tooltips.format === 'default') {
+          cellProps.tooltips.format = `<span>$ts<span>\n<hr><span>value: $current</span>`;
+        }
+        const variableNames = Array.from(cellProps.tooltips.format.matchAll(/\$([a-zA-Z_]\w*)/g)).map(match => match[1]);
+        const uniqueNames = [...new Set(variableNames)];
+        // let obj = new Map<string, number>();
+        // console.log("var", variableNames);
+        // variableNames.forEach((key)=>{ obj.set(key, 0);});
+        // console.log("obj", obj);
+        // const uniqueNames = Object.keys(obj);
+        console.log("uniq", uniqueNames)
+        uniqueNames.forEach( name => {
+          cell.tooltipVars.set(name, {element: null, value: null, color: null});
+        });
+        // build tooltips var map or remove name not found in elements
+        if (cellProps.tooltips.elements) {
+          // tooltips.element is a json object (dictionary) not and array nor map.
+          for ( const [key, element] of Object.entries(cellProps.tooltips.elements)) {
+            if (!key || ['ts', 'current'].includes(key) ) {
+              return;
+            }
+            const prop = cell.tooltipVars.get(key)
+            if (prop ) {
+              prop.element = element
+            } else {
+              cell.tooltipVars.delete(key);
+            }
+          };
+        }
+      }
     }
   });
   
@@ -325,31 +365,40 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
   primeColorCache(grafanaTheme, svgAttribs, panelConfig.background);
 
   return svgAttribs;
-} 
+}
 
-export function getCellValue(drive: DataRefDrive | undefined, tsData: TimeSeriesData, cellBespokeData: any) {
+export type GetCellValueType = {
+  value: string|number| any;
+  ts: number|any;
+}
+
+export function getCellValue(drive: DataRefDrive | undefined, tsData: TimeSeriesData, cellBespokeData: any): GetCellValueType {
   // Return bespoke value if defined
+  let value = null, retTs=null;
+
   if (cellBespokeData && drive?.bespokeDataRef) {
-    return cellBespokeData[drive.bespokeDataRef];
+    value = cellBespokeData[drive.bespokeDataRef].value
+    retTs = cellBespokeData[drive.bespokeDataRef].ts;
   }
-  let value = null;
-  if (drive?.dataRef) {
+  else if (drive?.dataRef) {
     const ts = tsData.ts.get(drive.dataRef);
     if (ts && (typeof ts.time.valuesIndex === 'number')) {
       value = ts.values[ts.time.valuesIndex];
+      retTs = ts.time.values[ts.time.valuesIndex];
 
       // lastNotNull results in a walkback till a non null value is found
       if (drive.datapoint === 'lastNotNull') {
         for (let i = ts.time.valuesIndex; i >= 0; i--) {
           value = ts.values[i];
           if (typeof value === 'number') {
+            retTs = ts.time.values[i];
             break;
           }
         }
       }
     }
   }
-  return value;
+  return { value: value, ts: retTs };
 }
 
 export function valueMapping(valueMappings: FlowValueMapping[], value: number | string | null) {
@@ -489,7 +538,7 @@ function thresholdSeed(sdb: SvgDriveBase,
   defaultSeed: number | string | null,
   bespokeData: any) {
   if (paramData?.dataRef || paramData?.bespokeDataRef) {
-    const cellValue = getCellValue(paramData, sdb.tsData, bespokeData);
+    const cellValue = getCellValue(paramData, sdb.tsData, bespokeData)?.value;
     return variableThresholdScaleValue(sdb.variableValues, sdb.cellData, cellValue);
   }
   else {
@@ -551,7 +600,14 @@ function getThresholdBlinkColorCompound(sdb: SvgDriveBase,
   return compound;
 }
 
-export function svgUpdate(svgHolder: SvgHolder, tsData: TimeSeriesData, highlighterSelection: string | undefined, animationsEnabled: boolean) {
+export function svgUpdate(svgHolder: SvgHolder, 
+    tsData: TimeSeriesData, 
+    highlighterSelection: string | undefined, 
+    animationsEnabled: boolean,
+    // setTooltipContent: (
+    //   content: string,
+    // ) => void,
+  ) {
   const variableValues = svgHolder.attribs.variableValues;
   const elementAttribs = svgHolder.attribs.elementAttribs;
   const highlightFactors = svgHolder.attribs.highlightFactors;
@@ -561,6 +617,7 @@ export function svgUpdate(svgHolder: SvgHolder, tsData: TimeSeriesData, highligh
 
   const cells = svgHolder.attribs.cells;
   cells.forEach((cellData, cellId) => {
+    console.log('cellId:', cellId);
     const highlight = highlightState(highlighterSelection, cellData.cellProps.tags)
     const sdb: SvgDriveBase = {
       variableValues: variableValues,
@@ -570,12 +627,15 @@ export function svgUpdate(svgHolder: SvgHolder, tsData: TimeSeriesData, highligh
       highlight: highlight,
     };
     const cellBespokeData = getBespokeData(cellId, cellData.cellProps, namespacedData);
-    
-    const cellValue = getCellValue(cellData.cellProps, tsData, cellBespokeData);
+    console.log('bespoke data', cellBespokeData)
+
+    const currentValue = getCellValue(cellData.cellProps, tsData, cellBespokeData)
+    const cellValue = currentValue.value;
     const cellValueSeed = variableThresholdScaleValue(variableValues, cellData, cellValue);
 
     const cellLabelData = cellData.cellProps.label;
-    const cellLabelValueInner = getCellValue(cellLabelData, tsData, cellBespokeData);
+    const currentValueInner = getCellValue(cellLabelData, tsData, cellBespokeData);
+    const cellLabelValueInner = currentValueInner.value;
     const cellLabelValue = cellLabelValueInner !== null ? cellLabelValueInner : cellValue;
     const cellLabelMappedValue = cellLabelData?.valueMappings ? valueMapping(cellLabelData.valueMappings, cellLabelValue) : null;
     const cellLabel = cellLabelMappedValue || (cellLabelData && (typeof cellLabelValue === 'number') ? formatCellValue(cellLabelData, cellLabelValue) : cellLabelValue);
@@ -598,10 +658,12 @@ export function svgUpdate(svgHolder: SvgHolder, tsData: TimeSeriesData, highligh
     const cellFlowAnimData = cellData.cellProps.flowAnimation;
     const cellFlowAnimSeed = thresholdSeed(sdb, cellFlowAnimData, cellValueSeed, cellBespokeData);
     const cellFlowAnimState = cellFlowAnimData ? getFlowAnimationState(cellFlowAnimData, animationsEnabled ? cellFlowAnimSeed : null ) : null;
-    let labelBlinkDuration = 0, labelBlinkColor = null
+    // let labelBlinkDuration = 0, labelBlinkColor = null
+
     if (cellData.cellProps.labelColor || cellData.cellProps.labelColorCompound) {
-      labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ? cellData.cellProps.labelColor.blinkDurationSecs : 0;
-      labelBlinkColor = cellData.cellProps.labelColorCompound ?
+
+      const labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ? cellData.cellProps.labelColor.blinkDurationSecs : 0;
+      const labelBlinkColor = cellData.cellProps.labelColorCompound ?
         getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData) :
         getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
   
@@ -610,12 +672,17 @@ export function svgUpdate(svgHolder: SvgHolder, tsData: TimeSeriesData, highligh
 @keyframes blinking_${cellId} { 50% { color: ${ labelBlinkColor?.color || cellLabelColor?.color || '' }} }
 .blink_${cellId} { animation: blinking_${cellId} ${labelBlinkDuration}s cubic-bezier(1,-0.27,0,1.36) infinite ;}
 `
-        }
       }
+    }
 
-      cellData.fillElements.forEach((el: HTMLElement) => {
+    cellData.fillElements.forEach((el: HTMLElement) => {
       if (cellData.cellProps.labelColor || cellData.cellProps.labelColorCompound) {
-        if (labelBlinkDuration > 0 && labelBlinkColor !== null){
+        const labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ? cellData.cellProps.labelColor.blinkDurationSecs : 0;
+        const labelBlinkColor = cellData.cellProps.labelColorCompound ?
+          getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData) :
+          getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
+
+          if (labelBlinkDuration > 0 && labelBlinkColor !== null){
           el.classList.add(`blink_${cellId}`)
         } else {
           el.classList.remove(`blink_${cellId}`)
@@ -667,6 +734,56 @@ export function svgUpdate(svgHolder: SvgHolder, tsData: TimeSeriesData, highligh
       cellData.textElements.forEach((el: HTMLElement) => {
         setFlowAnimationAttributes(el, cellFlowAnimState);
       });
+    }
+    if (cellData.cellProps.tooltips && cellData.cellProps.tooltips.format) {
+      let content = cellData.cellProps.tooltips.format;
+
+      cellData.tooltipVars.forEach( (element, key) => {
+        console.log('key',key, 'elmt', element, "content", content);
+        switch ( key ) {
+        case "ts":
+          const formater = getValueFormatterIndex()['dateTimeAsSystem'];
+          element.value = formater(currentValue?.ts, 0, 0, "").text;
+          break;
+        case "current":
+          element.value = cellLabel;
+          element.color = cellLabelColor?.color || null;
+          break;
+        default:
+          let cellTooltipValueSeed: any = null;
+          if(element.element?.label) {
+            const cellTooltipsData = element.element.label;
+            const cellTooltipsValueInner = getCellValue(cellTooltipsData, tsData, cellBespokeData);
+            const cellTooltipsValue = cellTooltipsValueInner?.value !== null ? cellTooltipsValueInner?.value : cellValue;
+            cellTooltipValueSeed = variableThresholdScaleValue(variableValues, cellData, cellTooltipsValue);
+            const cellTooltipsMappedValue = cellTooltipsData?.valueMappings ? valueMapping(cellTooltipsData.valueMappings, cellTooltipsValue) : null;
+            element.value = cellTooltipsMappedValue || (cellTooltipsData && (typeof cellTooltipsValue === 'number') ? formatCellValue(cellTooltipsData, cellTooltipsValue) : cellTooltipsValue);
+          }
+          if(element.element?.labelColor && cellTooltipValueSeed) {
+            element.color = getThresholdColor(sdb, cellTooltipValueSeed, element.element.labelColor, cellBespokeData)?.color || null;          }
+          break;
+        }
+        if (element.value !== '') {
+          const pattern = new RegExp(`\\$${key}`, 'g');
+          let value = element.value;
+          if (element.color) {
+            value = `<font style="color: ${element.color};">${value}</font>`
+          }
+          content = content.replace(pattern, value)
+        }
+      })
+      if (content) {
+        content = sanitize(content)
+      }
+    //   // cellData.cellProps.tooltips.content = "<span>" + formater(currentValue?.ts, 0, 0, "").text + "</span><hr>" + cellTooltips
+    //   // const content = sanitize("<span>" + formater(currentValue?.ts, 0, 0, "").text + "</span><hr>" + cellTooltips);
+      if ( cellData.tooltipContent !== content ) {
+        // setTooltipContent(content)
+        // setTooltipContent( sanitize(content) )
+
+        cellData.tooltipContent = content;
+      }
+      console.log('tooltip.content', content)
     }
   });
 }

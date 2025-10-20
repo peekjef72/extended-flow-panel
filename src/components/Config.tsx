@@ -131,6 +131,19 @@ export type PanelConfigCellBespoke = {
   drives: PanelConfigCellBespokeDrive[];
 };
 
+export type PanelConfigTooltipsElement = {
+  // name: string | undefined;
+  label: PanelConfigCellLabel | undefined;
+  labelColor: PanelConfigCellColor | undefined;
+};
+
+export type PanelConfigCellTooltips = {
+  format: string | undefined;
+  // elements: PanelConfigTooltipsElement[] | undefined;
+  elements: Map<string, PanelConfigTooltipsElement>;
+  content: string | undefined;
+};
+
 export type PanelConfigCell = DataRefDrive & {
   linkRef: string | undefined;
   link: Link | undefined;
@@ -146,6 +159,7 @@ export type PanelConfigCell = DataRefDrive & {
   flowAnimation: PanelConfigCellFlowAnimation | undefined;
   bespoke: PanelConfigCellBespoke | undefined;
   tags: Set<string> | undefined;
+  tooltips: PanelConfigCellTooltips | undefined;
 };
 
 export type HighlightFactors = {

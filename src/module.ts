@@ -37,6 +37,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addBooleanSwitch({
     path: 'panZoomEnabled',
     name: 'Pan / Zoom Enabled',
+    category: ['Options'],
     description: `When enabled the scroll wheel allows you to zoom and click-drag allows
     you to pan. Double-Click to reset zoom to normal. Note the scroll wheel can be configured
     to need additional keys such as 'Alt' to separate panel zoom from dashboard scroll. Check
@@ -46,6 +47,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addBooleanSwitch({
     path: 'animationsEnabled',
     name: 'Animations Enabled',
+    category: ['Options'],
     description: `This defines the initial state of animations controlled via yaml data. The actual
     state is dynamically settable from the play/pause button in the bottom left corner of the
     panel. The button is only visible if animations have been defined in the yaml data.`,
@@ -54,6 +56,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addBooleanSwitch({
     path: 'animationControlEnabled',
     name: 'Animation Control Enabled',
+    category: ['Options'],
     description: `This defines whether the pause/play animation control is shown in the
     bottom left corner of the panel. The button is only visible if animations have also been
     defined in the yaml data.`,
@@ -62,6 +65,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addBooleanSwitch({
     path: 'highlighterEnabled',
     name: 'Highlighter',
+    category: ['Options'],
     description: `When enabled a highlighting bar is added below the SVG. Widgets on the
     SVG have optional tags defined in the yaml and the highlighter allows you to bring
     a thread of information to the front.`,
@@ -70,12 +74,14 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addTextInput({
     path: 'highlighterSelection',
     name: 'Highlighter Selection',
+    category: ['Options'],
     description: `The initial highlighter tag selection. If empty it will default to the panelConfig value.`,
     defaultValue: '',
   })
   .addBooleanSwitch({
     path: 'timeSliderEnabled',
     name: 'Time Slider',
+    category: ['Options'],
     description: `When selected a time-slider is added to the bottom of
     the panel to support visualization of any time point in the time range.
     Even when not selected the panel can still respond to other panels time-sliders
@@ -85,6 +91,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addRadio({
     path: 'timeSliderMode',
     name: 'Time Slider Mode',
+    category: ['Options'],
     description: `This defines how the time-slider will respond to the dashboard
     environment. 'Local' means the time-slider is isolated from other panels.
     'Time' means it will synchronize with the time value of other time-sliders or
@@ -104,6 +111,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addBooleanSwitch({
     path: 'testDataEnabled',
     name: 'Test Data Generation',
+    category: ['Options'],
     description: `This enriches the grafana time series with additional test-data series that
     are used in the demonstration SVGs. It adds runtime overhead so only enable when getting
     started.`,

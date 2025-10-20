@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { css, cx } from '@emotion/css';
-import { Button, useStyles2, useTheme2 } from '@grafana/ui';
+import { Button, Tooltip, useStyles2, useTheme2 } from '@grafana/ui';
 import { getTemplateSrv } from '@grafana/runtime';
 import { GrafanaTheme2, PanelProps, toDataFrame } from '@grafana/data';
 import { FlowOptions, DebuggingCtrs } from '../types';
 import { configInit, panelConfigFactory, PanelConfig, siteConfigFactory, SiteConfig } from 'components/Config';
 import { HighlightState, HighlighterFactory, highlighterInitialState } from 'components/Highlighter';
 import { loadSvg, loadYaml } from 'components/Loader';
-import { svgInit, svgUpdate, SvgHolder, SvgElementAttribs } from 'components/SvgUpdater';
+import { svgInit, svgUpdate, SvgHolder, SvgElementAttribs, SvgAttribs } from 'components/SvgUpdater';
 import { seriesExtend, seriesInterpolate , seriesTransform } from 'components/TimeSeries';
 import { TimeSliderFactory } from 'components/TimeSlider';
 import { displayColorsInner, displayDataInner, displayMappingsInner, displaySvgInner } from 'components/DebuggingEditor';
@@ -94,6 +95,63 @@ function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, lin
   }
 }
 
+function setTooltipContentWrapper( setTooltipContent: React.Dispatch<React.SetStateAction<React.JSX.Element | string>>)
+  {
+    return function( content: string) {
+      console.log("ici")
+      if( content !== '' ) {
+        setTooltipContent( (<div dangerouslySetInnerHTML={{__html: content}}/>) );
+      } else {
+        setTooltipContent('on cell detected');
+      }
+    }
+}
+
+function tooltipHandlerFactory(svgAttribs: SvgAttribs, 
+  setTooltipContent: (
+      content: string,
+    ) => void,
+  setTooltipPos: React.Dispatch<React.SetStateAction<{x: number; y: number; w: number; h: number}>>) {
+
+   return (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
+    if (event.target) {
+      const element = event.target as HTMLElement;
+      const attribs = svgAttribs.elementAttribs.get(element.id);
+      if (!attribs) {
+        return;
+      }
+      const cell  = svgAttribs.cells.get(attribs.name);
+      if (cell && cell.cellProps.tooltips) {
+        if(event.type === 'mouseover') {
+          const rect = (event.target as SVGGraphicsElement).getBoundingClientRect();
+          // let element = (event.target as SVGGraphicsElement)
+          // const bbox = element.getBBox();
+          // const matrix = element.getScreenCTM();
+          // if (!matrix) return null;
+          // const point = element.ownerSVGElement!.createSVGPoint();
+          // point.x = bbox.x + bbox.width /2;
+          // const screenPoint = point.matrixTransform(matrix);
+          // console.log('x:', screenPoint.x,'y:', screenPoint.y)
+          setTooltipPos({ x: rect.x, y: rect.y, w: rect.width, h:rect.height });  // position
+          setTooltipContent(cell.tooltipContent)
+          // setTooltipPos({ x: screenPoint.x, y: screenPoint.y, w: bbox.width, h:bbox.height });  // position
+
+          // if( cell.cellProps.tooltips.content ) {
+          //   setTooltipContent( (<div dangerouslySetInnerHTML={{__html: cell.cellProps.tooltips.content}}/>) );
+          // } else {
+          //   setTooltipContent('on cell detected');
+          // }
+          console.log('mouseover :' + element.id, cell);
+        }
+        else if(event.type === 'mouseout') {
+          console.log('mouseout :' + element.id);
+        }
+        event.stopPropagation();
+      }
+    }
+  }
+}
+
 
 export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZone, eventBus }) => {
   //---------------------------------------------------------------------------
@@ -111,8 +169,12 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   const debuggingCtrRef = useRef<DebuggingCtrs>({...options.debuggingCtr});
   const svgHolderRef = useRef<SvgHolder>();
   const clickHandlerRef = useRef<any>(null);
+  const mouseOverHandlerRef = useRef<any>(null);
   const svgDocBlankRef = useRef<Document>(new DOMParser().parseFromString('<svg/>', "text/xml"));
   const grafanaTheme = useRef<GrafanaTheme2>(useTheme2());
+
+  const [tooltipContent, setTooltipContent] = useState<React.JSX.Element | string>('Default Value');
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number; w: number; h: number }>({ x: 0, y: 0, w: 0, h: 0, });
 
   //---------------------------------------------------------------------------
   // Dynamic URL Terms: If we load from url we record any variable substitutions
@@ -170,6 +232,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
         attribs: svgAttribs,
       };
       clickHandlerRef.current = clickHandlerFactory(svgAttribs.elementAttribs, panelConfig.linkVariables);
+      mouseOverHandlerRef.current = tooltipHandlerFactory(svgAttribs, setTooltipContentWrapper(setTooltipContent), setTooltipPos);
 
       setHighlighterSelection(highlighterInitialState(options.highlighterSelection, panelConfig.highlighter));
       setInitialized(true);
@@ -215,7 +278,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     });
   
     // Update the svg with current time-series and variable settings
-    instrument('svgUpdate', svgUpdate)(svgHolder, tsData, highlighterSelection, animationsEnabled);
+    instrument('svgUpdate', svgUpdate)(svgHolder, tsData, highlighterSelection, animationsEnabled, setTooltipContentWrapper(setTooltipContent));
   }
   const svgElement = (svgHolder ? svgHolder.doc : svgDocBlankRef.current).childNodes[0] as HTMLElement;
 
@@ -383,6 +446,8 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
               `
               )}
               onClick={clickHandlerRef.current}
+              onMouseOver={mouseOverHandlerRef.current}
+              onMouseOut={mouseOverHandlerRef.current}
               // The externally received svg is sanitized when read in via sanitizeSvgStr which uses
               // dompurify. We don't re-sanitize it on each rendering as we are in control of the
               // modifications being made.
@@ -395,6 +460,23 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
       {secondSeparator ? <hr/> : undefined}
       <div>{timeSliderEnabled && timeSlider}</div>
       {animationControlOwn ? animationControl : undefined}
+      { createPortal(
+        <Tooltip content={tooltipContent}>
+          <div
+            id="tooltip-trigger"
+            style={{
+              position: 'absolute',
+              top: tooltipPos.y,
+              left: tooltipPos.x,
+              width: tooltipPos.w,
+              height: tooltipPos.h,
+              pointerEvents: 'auto',
+              zIndex: 10000,
+            }}
+          />
+        </Tooltip>,
+        document.body
+      )}
     </div>
   ))();
   return jsx;
