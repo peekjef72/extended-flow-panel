@@ -281,7 +281,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
       // build map for known variables in format and elements
       if (cellProps.tooltips) {
         if (!cellProps.tooltips.format || cellProps.tooltips.format === '' || cellProps.tooltips.format === 'default') {
-          cellProps.tooltips.format = `<span>$ts<span>\n<hr><span>value: $current</span>`;
+          cellProps.tooltips.format = `<span style="display: block; text-align: center;">$ts<span><br><hr><span>value: $current</span>`;
         }
         const variableNames = Array.from(cellProps.tooltips.format.matchAll(/\$([a-zA-Z_]\w*)/g)).map(match => match[1]);
         const uniqueNames = [...new Set(variableNames)];
@@ -290,7 +290,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
         // variableNames.forEach((key)=>{ obj.set(key, 0);});
         // console.log("obj", obj);
         // const uniqueNames = Object.keys(obj);
-        console.log("uniq", uniqueNames)
+        // console.log("uniq", uniqueNames)
         uniqueNames.forEach( name => {
           cell.tooltipVars.set(name, {element: null, value: null, color: null});
         });
@@ -604,20 +604,25 @@ export function svgUpdate(svgHolder: SvgHolder,
     tsData: TimeSeriesData, 
     highlighterSelection: string | undefined, 
     animationsEnabled: boolean,
-    // setTooltipContent: (
-    //   content: string,
-    // ) => void,
+    setTooltipContent: (
+      content: string,
+    ) => void,
+    tooltipTriggerElementId: string | undefined,
+    tooltipContentRef: React.MutableRefObject<string>,
   ) {
   const variableValues = svgHolder.attribs.variableValues;
   const elementAttribs = svgHolder.attribs.elementAttribs;
   const highlightFactors = svgHolder.attribs.highlightFactors;
+
+  console.log('%c[TRACE] svgUpdate(): start', "color: orange; font-weight: bold;")
+  console.trace()
 
   // Bespoke Attribute Drive
   const namespacedData = attribDriverManager(svgHolder.attribs.bespokeHandlers, tsData, highlighterSelection);
 
   const cells = svgHolder.attribs.cells;
   cells.forEach((cellData, cellId) => {
-    console.log('cellId:', cellId);
+    console.log('svgUpdate: cellId:', cellId);
     const highlight = highlightState(highlighterSelection, cellData.cellProps.tags)
     const sdb: SvgDriveBase = {
       variableValues: variableValues,
@@ -627,7 +632,7 @@ export function svgUpdate(svgHolder: SvgHolder,
       highlight: highlight,
     };
     const cellBespokeData = getBespokeData(cellId, cellData.cellProps, namespacedData);
-    console.log('bespoke data', cellBespokeData)
+    // console.log('bespoke data', cellBespokeData)
 
     const currentValue = getCellValue(cellData.cellProps, tsData, cellBespokeData)
     const cellValue = currentValue.value;
@@ -739,7 +744,7 @@ export function svgUpdate(svgHolder: SvgHolder,
       let content = cellData.cellProps.tooltips.format;
 
       cellData.tooltipVars.forEach( (element, key) => {
-        console.log('key',key, 'elmt', element, "content", content);
+        console.log('svgUpdate: key:',key, 'element:', element, "content:", content);
         switch ( key ) {
         case "ts":
           const formater = getValueFormatterIndex()['dateTimeAsSystem'];
@@ -775,15 +780,18 @@ export function svgUpdate(svgHolder: SvgHolder,
       if (content) {
         content = sanitize(content)
       }
-    //   // cellData.cellProps.tooltips.content = "<span>" + formater(currentValue?.ts, 0, 0, "").text + "</span><hr>" + cellTooltips
-    //   // const content = sanitize("<span>" + formater(currentValue?.ts, 0, 0, "").text + "</span><hr>" + cellTooltips);
       if ( cellData.tooltipContent !== content ) {
-        // setTooltipContent(content)
-        // setTooltipContent( sanitize(content) )
-
-        cellData.tooltipContent = content;
+        // cellData.tooltipContent = content;
+        console.log('svgUpdate(): tooltipTriggerElementId:', tooltipTriggerElementId)
+        console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
+        
+        if (tooltipTriggerElementId && cellId === tooltipTriggerElementId && tooltipContentRef.current !== content ) {
+          console.log('svgUpdate: will update content for cell', tooltipTriggerElementId)
+          tooltipContentRef.current = content;
+          setTooltipContent(content)
+        }
       }
-      console.log('tooltip.content', content)
+      console.log('svgUpdate: tooltip.content', content)
     }
   });
 }
