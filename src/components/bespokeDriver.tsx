@@ -202,7 +202,7 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
       if (typeof dataStore.data[dataRef] === 'undefined') {
         const drive = {dataRef: dataRef, bespokeDataRef: undefined, datapoint: bespokeDataDatapoint};
         const dataValue = getCellValue(drive, tsData, null);
-        dataStore.data[dataRef] = dataValue;
+        dataStore.data[dataRef] = dataValue.value;
       }
     });
   });
