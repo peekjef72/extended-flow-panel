@@ -1,5 +1,5 @@
 import { DatapointMode, PanelConfigCell } from 'components/Config';
-import { BespokeStateHolder, getCellValue} from './SvgUpdater';
+import { BespokeStateHolder, getCellValue, GetCellValueType} from './SvgUpdater';
 import { MathNode, parse } from 'mathjs'
 import { TimeSeriesData } from './TimeSeries';
 import { getTemplateSrv } from '@grafana/runtime';
@@ -18,6 +18,7 @@ type Utils = {
 type NamespacedData =  {
   utils: Utils;
   data: any;
+  data_ts: any;
   // plus client defined variables
 };
 
@@ -181,6 +182,8 @@ function clientExposedUtils(highlighterSelection: string) {
 
 export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSeriesData, highlighterSelection: string | undefined) {
   const namespacedData  = new Map<string, NamespacedData>();
+  let current_ts : number = 0;
+  let count_ts : number = 0 ;
 
   // Initialize each namespaced store with constants and data
   cbh.forEach((handler: CellBespokeHandler) => {
@@ -203,9 +206,14 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
         const drive = {dataRef: dataRef, bespokeDataRef: undefined, datapoint: bespokeDataDatapoint};
         const dataValue = getCellValue(drive, tsData, null);
         dataStore.data[dataRef] = dataValue.value;
+        current_ts += dataValue.ts;
+        count_ts ++;
       }
     });
   });
+  // set an average ts value 
+  current_ts = Math.round(current_ts/count_ts);
+
 
   // Invoke the formulas
   const namespaceUpdated = new Set<string>();
@@ -243,6 +251,19 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
     }
     catch (err) {
       flowDebug().warn('Error occurred calculating bespoke attribute for', handler.element, 'error =', err);
+    }
+  });
+
+  // set the bespoke values in attended format (GetCellValueType)
+  cbh.forEach((handler: CellBespokeHandler) => {
+    const namespace = handler.clientState.namespace;
+    const dataStore = namespacedData.get(namespace) as NamespacedData;
+    for (const [k, v] of Object.entries(dataStore)) {
+      if ( !['data', 'utils'].includes(k) && ( typeof v === "number" || typeof v === "string" ) ) {
+        const obj = dataStore as any;
+        const value: GetCellValueType = {"value": v, "ts": current_ts}
+        obj[k] = value;
+      }
     }
   });
 

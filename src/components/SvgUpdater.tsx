@@ -19,6 +19,7 @@ import {
 import { getTemplateSrv } from '@grafana/runtime';
 import { attribDriverManager, bespokeDriveHandlerFactory, ScopedState, CellBespokeHandler, getBespokeData } from './bespokeDriver';
 import { sanitize } from 'dompurify';
+import { TooltipTriggerConfig } from './TooltipTrigger';
 
 // Defines the metadata stored against each drivable svg cell
 export type SvgCell = {
@@ -278,7 +279,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
       cell.style.setAttribute("id", cellId+'_style');
       el.insertAdjacentElement('afterbegin', cell.style);
 
-      // build map for known variables in format and elements
+      // if tooltip is defined, build a map for known variables set in format attributes and defined elements list
       if (cellProps.tooltips) {
         if (!cellProps.tooltips.format || cellProps.tooltips.format === '' || cellProps.tooltips.format === 'default') {
           cellProps.tooltips.format = `<span style="display: block; text-align: center;">$ts<span><br><hr><span>value: $current</span>`;
@@ -607,8 +608,8 @@ export function svgUpdate(svgHolder: SvgHolder,
     setTooltipContent: (
       content: string,
     ) => void,
-    tooltipTriggerElementId: string | undefined,
     tooltipContentRef: React.MutableRefObject<string>,
+    tooltipConfigRef: React.MutableRefObject<TooltipTriggerConfig>,
   ) {
   const variableValues = svgHolder.attribs.variableValues;
   const elementAttribs = svgHolder.attribs.elementAttribs;
@@ -782,11 +783,11 @@ export function svgUpdate(svgHolder: SvgHolder,
       }
       if ( cellData.tooltipContent !== content ) {
         // cellData.tooltipContent = content;
-        console.log('svgUpdate(): tooltipTriggerElementId:', tooltipTriggerElementId)
+        console.log('svgUpdate(): tooltipTriggerElementId:', tooltipConfigRef.current.elementId)
         console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
         
-        if (tooltipTriggerElementId && cellId === tooltipTriggerElementId && tooltipContentRef.current !== content ) {
-          console.log('svgUpdate: will update content for cell', tooltipTriggerElementId)
+        if (tooltipConfigRef.current.elementId && cellId === tooltipConfigRef.current.elementId && tooltipContentRef.current !== content ) {
+          console.log('svgUpdate: will update content for cell', tooltipConfigRef.current.elementId)
           tooltipContentRef.current = content;
           setTooltipContent(content)
         }
