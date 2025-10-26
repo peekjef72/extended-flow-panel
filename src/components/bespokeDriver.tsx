@@ -182,8 +182,8 @@ function clientExposedUtils(highlighterSelection: string) {
 
 export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSeriesData, highlighterSelection: string | undefined) {
   const namespacedData  = new Map<string, NamespacedData>();
-  let current_ts : number = 0;
-  let count_ts : number = 0 ;
+  let current_ts = 0;
+  let count_ts = 0 ;
 
   // Initialize each namespaced store with constants and data
   cbh.forEach((handler: CellBespokeHandler) => {

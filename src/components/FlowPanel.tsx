@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { css, cx } from '@emotion/css';
 import { Button, useStyles2, useTheme2 } from '@grafana/ui';
@@ -13,7 +13,7 @@ import { seriesExtend, seriesInterpolate , seriesTransform } from 'components/Ti
 import { TimeSliderFactory } from 'components/TimeSlider';
 import { displayColorsInner, displayDataInner, displayMappingsInner, displaySvgInner } from 'components/DebuggingEditor';
 import { colorLookup, constructUrl, flowDebug, getInstrumenter } from 'components/Utils';
-import { TooltipTrigger, TooltipTriggerConfig } from "components/TooltipTrigger"
+import { TooltipTrigger, TooltipTriggerHandle, TooltipTriggerConfig } from "components/TooltipTrigger"
 import { addHook, sanitize } from 'dompurify';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
@@ -97,11 +97,15 @@ function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, lin
 }
 
 function setTooltipContentWrapper( 
-  setTooltipContent: React.Dispatch<React.SetStateAction<React.JSX.Element | string>>,
+  setTooltipContent: React.Dispatch<React.SetStateAction<string | React.JSX.Element>> | null,
   // tooltipContent: React.MutableRefObject<string | React.JSX.Element>,
 ){
   return function( content: React.JSX.Element | string) {
-    console.log("setTooltipContentWrapper: ici - typeof content: ", typeof content)
+    if( !setTooltipContent ) {
+      return;
+    }
+
+    // console.log("setTooltipContentWrapper: ici - typeof content: ", typeof content)
     if (typeof content === "string") {
       setTooltipContent( (<div dangerouslySetInnerHTML={{__html: content}}/>) );
     } else {
@@ -110,24 +114,15 @@ function setTooltipContentWrapper(
   }
 }
 
-// function setTooltipTriggerElementIdWrapper(
-//   setTooltipTriggerElementId: React.Dispatch<React.SetStateAction<string | undefined>>,
-//   tooltipTriggerElementId : string | undefined,
-// ){
-//   return function( elementId string) {
-//     if (elementId != tooltipTriggerElementId
-//   }
-// }
-
 function tooltipHandlerFactory(
   svgAttribs: SvgAttribs, 
   setTooltipContent: (
       content: React.JSX.Element | string,
     ) => void,
   tooltipContentRef: React.MutableRefObject<React.JSX.Element | string>,
-  setTooltipConfig: React.Dispatch<React.SetStateAction<TooltipTriggerConfig>>,
-  tooltipConfig: TooltipTriggerConfig,
-  setTooltipState: React.Dispatch<React.SetStateAction<string>>,
+  setTooltipConfig: React.Dispatch<React.SetStateAction<TooltipTriggerConfig>> | null,
+  tooltipConfigRef: React.MutableRefObject<TooltipTriggerConfig|null>,
+  setTooltipState: React.Dispatch<React.SetStateAction<string>> | null,
 ) {
 
    return (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
@@ -137,50 +132,35 @@ function tooltipHandlerFactory(
       if (!attribs) {
         return;
       }
+      if (!tooltipConfigRef || !tooltipConfigRef.current || !setTooltipConfig || !setTooltipState) {
+        return;
+      }
+      const tooltipConfig = tooltipConfigRef.current;
+      // console.log("tooltipHandlerFactory(): tooltipConfig:", tooltipConfig, " - tooltipContent:", tooltipContentRef.current)
       const cell  = svgAttribs.cells.get(attribs.name);
       if (cell && cell.cellProps.tooltips) {
         if(event.type === 'mouseover') {
-          const rect = (event.target as SVGGraphicsElement).getBoundingClientRect();
-
-          if (cell.cellIdShort != tooltipConfig.elementId) {
-            setTooltipContent(tooltipContentRef.current)
+          
+          if (cell.cellIdShort !== tooltipConfig.elementId) {
+            const rect = (event.target as SVGGraphicsElement).getBoundingClientRect();
+            setTooltipContent(cell.tooltipContent)
+            setTooltipConfig({ 
+              x: rect.x, y: rect.y, w: rect.width, h:rect.height,
+              elementId: cell.cellIdShort
+            });
           }
-          setTooltipConfig({ 
-            x: rect.x, y: rect.y, w: rect.width, h:rect.height,
-            elementId: cell.cellIdShort
-          });
           setTooltipState('');
 
-          console.log('tooltipHandlerFactory: mouseover :' + cell.cellIdShort, cell);
+          // console.log('tooltipHandlerFactory: mouseover :' + cell.cellIdShort, cell);
+          event.stopPropagation();
         }
-        else if(event.type === 'mouseout') {
-          console.log('tooltipHandlerFactory: mouseout :' + cell.cellIdShort);
-        }
-        event.stopPropagation();
+        // else if(event.type === 'mouseout') {
+        //   console.log('tooltipHandlerFactory: mouseout :' + cell.cellIdShort);
+        // }
       }
     }
   }
 }
-
-function tooltipTriggerElementIdChange(svgAttribs: SvgAttribs, 
-  setTooltipContent: (
-      content: React.JSX.Element | string,
-    ) => void,
-  tooltipContentRef: React.MutableRefObject<React.JSX.Element | string>,
-  tooltipConfigRef: React.MutableRefObject<TooltipTriggerConfig>,
-){
-  if (tooltipConfigRef.current.elementId) {
-    const attribs = svgAttribs.elementAttribs.get(tooltipConfigRef.current.elementId);
-    if (!attribs) {
-      return;
-    }
-    const cell  = svgAttribs.cells.get(attribs.name);
-    if (cell && cell.cellProps.tooltips) {
-      setTooltipContent(tooltipContentRef.current)
-    }
-  }
-}
-
 
 export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZone, eventBus }) => {
   //---------------------------------------------------------------------------
@@ -199,15 +179,35 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   const svgHolderRef = useRef<SvgHolder>();
   const clickHandlerRef = useRef<any>(null);
   const mouseOverHandlerRef = useRef<any>(null);
-  // const tooltipTriggerMouseOverHandlerRef = useRef<any>(null);
   const svgDocBlankRef = useRef<Document>(new DOMParser().parseFromString('<svg/>', "text/xml"));
   const grafanaTheme = useRef<GrafanaTheme2>(useTheme2());
 
-  const [tooltipContent, setTooltipContent] = useState<React.JSX.Element | string>('Default Value');
-  const [tooltipState, setTooltipState] = useState<string>('')
-  const [tooltipConfig, setTooltipConfig ] = useState<TooltipTriggerConfig>({ x: 0, y: 0, w: 0, h: 0, elementId: ''});
-  const tooltipContentRef = useRef<React.JSX.Element | string>(tooltipContent)
-  const tooltipConfigRef = useRef<TooltipTriggerConfig>(tooltipConfig)
+  //---------------------------------------------------------------------------
+  // TooltipTrigger
+
+  const setTooltipContentRef = useRef<React.Dispatch<React.SetStateAction<string | React.JSX.Element>> | null>(null);
+  const registerSetterSetTooltipContent = useCallback( (setter: React.Dispatch<React.SetStateAction<string | React.JSX.Element>>) => {
+    setTooltipContentRef.current = setter;
+  }, [] );
+  const tooltipContentRef = useRef<React.JSX.Element | string >("");
+
+  const setTooltipStateRef = useRef<React.Dispatch<React.SetStateAction<string>> | null>(null);
+  const registerSetterSetTooltipState = useCallback( (setter: React.Dispatch<React.SetStateAction<string>>) => {
+    setTooltipStateRef.current = setter;
+  }, [] );
+
+  const setTooltipConfigRef = useRef<React.Dispatch<React.SetStateAction<TooltipTriggerConfig>> | null>(null);
+  const registerSetterSetTooltipConfig = useCallback( (setter: React.Dispatch<React.SetStateAction<TooltipTriggerConfig>>) => {
+    setTooltipConfigRef.current = setter;
+  }, [] );
+  const tooltipConfigRef = useRef<TooltipTriggerConfig | null >(null);
+  const tooltipTriggerRef = useRef<TooltipTriggerHandle>(null);
+  useEffect(()=> {
+    if (tooltipTriggerRef.current) {
+      tooltipContentRef.current = tooltipTriggerRef.current.getTooltipContentRef();
+      tooltipConfigRef.current = tooltipTriggerRef.current.getTooltipConfigRef();
+    }
+  }, [])
 
   //---------------------------------------------------------------------------
   // Dynamic URL Terms: If we load from url we record any variable substitutions
@@ -223,6 +223,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   // Load config and svg
 
   useEffect(() => {
+    // console.log("load config")
     svgHolderRef.current = undefined;
     panelConfigError.current = '';
     setInitialized(false);
@@ -266,52 +267,18 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
       };
       clickHandlerRef.current = clickHandlerFactory(svgAttribs.elementAttribs, panelConfig.linkVariables);
       mouseOverHandlerRef.current = tooltipHandlerFactory(
-        svgAttribs, 
-        // setTooltipContentWrapper(setTooltipContent, tooltipContent),
-        setTooltipContentWrapper(setTooltipContent),
+        svgAttribs,
+        setTooltipContentWrapper(setTooltipContentRef.current),
         tooltipContentRef,
-        setTooltipConfig,
-        tooltipConfig,
-        setTooltipState,
+        setTooltipConfigRef.current,
+        tooltipConfigRef,
+        setTooltipStateRef.current,
       );
-      // mouseOutTooltipTriggerHandlerRef.current = tooltipTriggerHandlerFactory(setTooltipState)
-      // tooltipTriggerMouseOverHandlerRef.current = tooltipHandlerTriggerFactory(
-      //   svgAttribs, 
-      //   setTooltipContentWrapper(setTooltipContent, tooltipContent),
-      //   tooltipTriggerElementId,
-      // )
       setHighlighterSelection(highlighterInitialState(options.highlighterSelection, panelConfig.highlighter));
       setInitialized(true);
     }
   }, [initialized, svgStr, panelConfig, siteConfig, options.highlighterSelection]);
   
-  //---------------------------------------------------------------------------
-  // maintain ref to mouseover object and tooltipTrigger object
-  useEffect( () => {
-    let svgHolder = svgHolderRef.current;
-//    tooltipTriggerElementIdRef.current = tooltipTriggerElementId;
-
-    tooltipConfigRef.current = tooltipConfig;
-    console.log("tooltipConfig:", tooltipConfigRef.current)
-
-    if (svgHolder) {
-      tooltipTriggerElementIdChange(svgHolder.attribs,
-        // setTooltipContentWrapper(setTooltipContent, tooltipContent),
-        setTooltipContentWrapper(setTooltipContent),
-        tooltipContentRef,
-        tooltipConfigRef,
-      )
-    }
-  }, [tooltipConfig] );
-
-  useEffect( () => {
-    if (typeof tooltipContent ==='object' ) {
-      tooltipContentRef.current = tooltipContent.props.dangerouslySetInnerHTML.__html
-    } else {
-      tooltipContentRef.current = tooltipContent
-    }
-    console.log("tooltipContent:", tooltipContentRef.current)
-  }, [tooltipContent])
 
   //---------------------------------------------------------------------------
   // Interpolate time-series data
@@ -352,17 +319,16 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     });
   
     // Update the svg with current time-series and variable settings
-    console.log("flowPanel:instrument() launch svgUpdate()")
+    // console.log("flowPanel:instrument() launch svgUpdate()")
     instrument('svgUpdate', svgUpdate)(
       svgHolder,
       tsData,
       highlighterSelection,
       animationsEnabled,
-      setTooltipContentWrapper(setTooltipContent),
+      setTooltipContentWrapper(setTooltipContentRef.current),
       tooltipContentRef,
       tooltipConfigRef,
     );
-    // instrument('svgUpdate', svgUpdate)(svgHolder, tsData, highlighterSelection, animationsEnabled);
   }
   const svgElement = (svgHolder ? svgHolder.doc : svgDocBlankRef.current).childNodes[0] as HTMLElement;
 
@@ -461,14 +427,6 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     eventBus: eventBus,
   });
 
-  const tooltipTrigger = TooltipTrigger ( {
-    setContent: setTooltipContent,
-    content: tooltipContent,
-    setTooltipConfig: setTooltipConfig,
-    config: tooltipConfig,
-    setTooltipState: setTooltipState,
-    state: tooltipState,
-  });
   //---------------------------------------------------------------------------
   // Define the background
 
@@ -539,7 +497,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
               )}
               onClick={clickHandlerRef.current}
               onMouseOver={mouseOverHandlerRef.current}
-              onMouseOut={mouseOverHandlerRef.current}
+              // onMouseOut={mouseOverHandlerRef.current}
               // The externally received svg is sanitized when read in via sanitizeSvgStr which uses
               // dompurify. We don't re-sanitize it on each rendering as we are in control of the
               // modifications being made.
@@ -553,7 +511,20 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
       <div>{timeSliderEnabled && timeSlider}</div>
       {animationControlOwn ? animationControl : undefined}
       { createPortal(
-        tooltipTrigger,
+        // tooltipTrigger,
+      <TooltipTrigger
+        ref={tooltipTriggerRef}
+        content="Hello Tooltip"
+        config={{ x: 100, y: 100, w: 150, h: 40, elementId: 'tooltip-example' }}
+        state="block"
+        registerSetterSetTooltipContent={registerSetterSetTooltipContent}
+        registerSetterSetTooltipState={registerSetterSetTooltipState}
+        registerSetterSetTooltipConfig={registerSetterSetTooltipConfig}
+        onRefsChange={({ content, config }) => {
+          tooltipContentRef.current = content;
+          tooltipConfigRef.current = config;
+        }}
+        />,
         document.body
       )}
     </div>
