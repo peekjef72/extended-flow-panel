@@ -21,6 +21,24 @@ import { attribDriverManager, bespokeDriveHandlerFactory, ScopedState, CellBespo
 import { sanitize } from 'dompurify';
 import { TooltipTriggerConfig } from './TooltipTrigger';
 
+
+type TooltipVariableInstanceType = "label" | "labelColor" | "default";
+export type TooltipVariableInstance = {
+  varName: string;
+  type: TooltipVariableInstanceType;
+}
+
+export type TooltipVar = {
+  element: PanelConfigTooltipsElement | undefined;
+  value: any;
+  color: any;
+}
+export type TooltipHolder = {
+  tooltipContent: string;
+  usedVars: Map<string, TooltipVar>;
+  usedInstances: Map<string, TooltipVariableInstance>;
+}
+
 // Defines the metadata stored against each drivable svg cell
 export type SvgCell = {
   cellId: string;
@@ -33,8 +51,9 @@ export type SvgCell = {
   cellProps: PanelConfigCell;
   variableThresholdScalars: Map<string, VariableThresholdScalars[]>;
   style: HTMLElement;
-  tooltipContent: string;
-  tooltipVars: Map<string, { element: PanelConfigTooltipsElement | null, value: any, color: any }>;
+  // tooltipContent: string;
+  // tooltipVars: Map<string, { element: PanelConfigTooltipsElement | null, value: any, color: any }>;
+  tooltip: TooltipHolder;
 
 };
 
@@ -247,6 +266,11 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
     const cellIdMaker = cellIdFactory(cellId + panelConfig.cellIdExtender);
     let el = doc.getElementById(cellId);
     if (el) {
+      const tooltip: TooltipHolder = {
+        tooltipContent: '',
+        usedVars: new Map<string, TooltipVar>(),
+        usedInstances: new Map<string, TooltipVariableInstance>(),
+      }
       const cell = {
         cellIdShort: cellIdShort,
         cellId: cellId,
@@ -258,8 +282,9 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
         cellProps: cellProps,
         style: doc.createElement("style"),
         variableThresholdScalars: new Map<string, VariableThresholdScalars[]>(),
-        tooltipContent: '',
-        tooltipVars: new Map<string, { element: PanelConfigTooltipsElement | null, value: any, color: any }>(),
+        // tooltipContent: '',
+        // tooltipVars: new Map<string, { element: PanelConfigTooltipsElement | null, value: any, color: any }>(),
+        tooltip: tooltip,
       };
       cells.set(cellIdShort, cell);
 
@@ -284,26 +309,57 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
         if (!cellProps.tooltips.format || cellProps.tooltips.format === '' || cellProps.tooltips.format === 'default') {
           cellProps.tooltips.format = `<span style="display: block; text-align: center;">$ts</span><hr><span>value: $current</span>`;
         }
-        const variableNames = Array.from(cellProps.tooltips.format.matchAll(/\$([a-zA-Z_]\w*)/g)).map(match => match[1]);
-        const uniqueNames = [...new Set(variableNames)];
+        for (const match of cellProps.tooltips.format.matchAll(/\$({?([a-zA-Z_]\w*)(?:\.([a-zA-Z_]\w*))?}?)/g)) {
+          // analyze var format.
+          // match[1] is the pattern that we will to substitute during render.
+          // match[2] is the variable name
+          // match[3] if defined is the attribute name from variable to used, else patten type is default
+          
+          // if instance is already in map not necessary to prepare again!
+          if ( !tooltip.usedInstances.get(match[1]) ) {
+            // build tooltips var map or remove name not found in elements
+            // check if variable name exists in element list
+            if( !tooltip.usedVars.get(match[2]) ) {
+              let element, found = false;
+              // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "not already defined")
+              if ( ["ts", "current"].includes(match[2]) ) {
+                element = undefined;
+                found = true;
+                // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "is internal")
+              } else if (cellProps.tooltips.newElements) {
+                element = cellProps.tooltips.newElements.get(match[2]);
+                if (element !== undefined) {
+                  // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "found in elements.")
+                  found = true;
+                } else {
+                  // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "not found: not in elements.")
+                }
+              } else {
+                // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "not found: no elements defined.")
+              }
+              if (found) {
+                // console.log("sgvInit(): add tooltip for ", cellIdShort, " var:", match[2])
+                let variable: TooltipVar = {
+                  element: element,
+                  value: undefined,
+                  color: undefined,
+                }
+                tooltip.usedVars.set(match[2], variable);
+              }
+            }
 
-        uniqueNames.forEach( name => {
-          cell.tooltipVars.set(name, {element: null, value: null, color: null});
-        });
-        // build tooltips var map or remove name not found in elements
-        if (cellProps.tooltips.elements) {
-          // tooltips.element is a json object (dictionary) not and array nor map.
-          for ( const [key, element] of Object.entries(cellProps.tooltips.elements)) {
-            if (!key || ['ts', 'current'].includes(key) ) {
-              return;
+            let instance: TooltipVariableInstance = {
+              varName: match[2],
+              type: "default"
             }
-            const prop = cell.tooltipVars.get(key)
-            if (prop ) {
-              prop.element = element
-            } else {
-              cell.tooltipVars.delete(key);
+            if (match[3] !== undefined) {
+              if( ["labelColor", "label"].includes(match[3]) ) {
+                instance.type = match[3] as TooltipVariableInstanceType;
+              }
             }
-          };
+            // console.log("sgvInit(): add tooltip for ", cellIdShort, " var instance type:", match[1], instance.type)
+            tooltip.usedInstances.set(match[1],instance)
+          }
         }
       }
     }
@@ -739,8 +795,9 @@ export function svgUpdate(svgHolder: SvgHolder,
     if (cellData.cellProps.tooltips && cellData.cellProps.tooltips.format) {
       let content = cellData.cellProps.tooltips.format;
 
-      cellData.tooltipVars.forEach( (element, key) => {
-        // console.log('svgUpdate: key:',key, 'element:', element, "content:", content);
+      cellData.tooltip.usedVars.forEach( (element, key) => {
+      // console.log('svgUpdate(): for ',  cellId, 'update var values key:',key, 'element:', element, "content:", content);
+        
         switch ( key ) {
         case "ts":
           const formater = getValueFormatterIndex()['dateTimeAsSystem'];
@@ -764,11 +821,27 @@ export function svgUpdate(svgHolder: SvgHolder,
             element.color = getThresholdColor(sdb, cellTooltipValueSeed, element.element.labelColor, cellBespokeData)?.color || null;          }
           break;
         }
-        if (element.value !== '') {
+      });
+      cellData.tooltip.usedInstances.forEach( (instance, key) => {
+        const element = cellData.tooltip.usedVars.get(instance.varName);
+        // console.log('svgUpdate(): for ',  cellId, 'replace var values key:', key, 'instance:', instance, 'element:', element, "content:", content);
+        if (element) {
           const pattern = new RegExp(`\\$${key}`, 'g');
-          let value = element.value;
-          if (element.color) {
-            value = `<font style="color: ${element.color};">${value}</font>`
+          let value = key;
+
+          switch (instance.type) {
+            case "label":
+              value = element.value;
+              break;
+            case "labelColor":
+              value = element.color;
+              break;
+
+            default:
+              value = element.value;
+              if (element.color) {
+                value = `<font style="color: ${element.color};">${value}</font>`
+              }
           }
           content = content.replace(pattern, value)
         }
@@ -776,8 +849,8 @@ export function svgUpdate(svgHolder: SvgHolder,
       if (content) {
         content = sanitize(content)
       }
-      if ( cellData.tooltipContent !== content ) {
-        cellData.tooltipContent = content;
+      if ( cellData.tooltip.tooltipContent !== content ) {
+        cellData.tooltip.tooltipContent = content;
 
         // if( tooltipConfigRef && tooltipConfigRef.current ) {
         //   console.log('svgUpdate(): tooltipTriggerElementId:', tooltipConfigRef.current?.elementId)

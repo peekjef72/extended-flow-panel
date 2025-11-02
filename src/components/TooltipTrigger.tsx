@@ -1,5 +1,7 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { Tooltip } from '@grafana/ui';
+import { Placement } from '@popperjs/core';
+
 
 export type TooltipTriggerConfig = {
   x: number;
@@ -7,6 +9,8 @@ export type TooltipTriggerConfig = {
   w: number;
   h: number;
   elementId: string;
+  placement: Placement;
+  
 }
 
 export interface TooltipTriggerProps {
@@ -39,7 +43,7 @@ export type TooltipTriggerHandle = {
 export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerProps>((props, ref) => {
     const [tooltipContent, setTooltipContent] = useState<React.JSX.Element | string>(props.content || 'Default Value');
     const [tooltipState, setTooltipState] = useState<string>(props.state || 'none');
-    const [tooltipConfig, setTooltipConfig ] = useState<TooltipTriggerConfig>({ x: 0, y: 0, w: 0, h: 0, elementId: ''});
+    const [tooltipConfig, setTooltipConfig ] = useState<TooltipTriggerConfig>({ x: 0, y: 0, w: 0, h: 0, elementId: '', placement: 'auto'});
 
     const mouseOutTooltipTriggerHandlerRef = useRef<any>(null);
     // const tooltipTriggerRef = useRef<string>(`tooltip-trigger#${Math.random().toString(36)}`);
@@ -50,12 +54,16 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
         w: 0,
         h: 0,
         elementId: '',
+        placement: 'bottom',
     });
 
     function tooltipTriggerHandlerFactory() {
         return (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
             if (event.target) {
-                setTooltipState('none');
+                if(event.type === 'mouseout') {
+                    setTooltipState('none');
+                // } else {
+                }
             }
         }
     }
@@ -92,10 +100,10 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
         },
         getTooltipConfigRef() {
             return tooltipConfigRef?.current;
-        }
+        },
     }))
     //---------------------------------------------------------------------------
-    // maintain ref to mouseover object and tooltipTrigger object
+    // maintain refs from object
     useLayoutEffect(() => {
         props.onRefsChange?.({
             content: tooltipContentRef.current,
@@ -105,8 +113,35 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
 
 //------
 
+if (typeof tooltipContent === "string") {
     return (
-        <Tooltip content={tooltipContent}>
+        <Tooltip 
+            content={
+                <div 
+                    className='my-tooltip-class'
+                    dangerouslySetInnerHTML={{__html: tooltipContent}}
+                />}
+            placement={tooltipConfig.placement}
+            >
+             <div
+                style={{
+                    position: 'absolute',
+                    top: tooltipConfig.y,
+                    left: tooltipConfig.x,
+                    width: tooltipConfig.w,
+                    height: tooltipConfig.h,
+                    pointerEvents: 'auto',
+                    display: tooltipState,
+                }}
+                onMouseOut={mouseOutTooltipTriggerHandlerRef.current}
+                onMouseEnter={mouseOutTooltipTriggerHandlerRef.current}
+                
+            />
+        </Tooltip>
+    )
+} else {
+    return (
+        <Tooltip content={tooltipContent} placement={tooltipConfig.placement}>
             <div
                 style={{
                     position: 'absolute',
@@ -118,9 +153,12 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
                     display: tooltipState,
                 }}
                 onMouseOut={mouseOutTooltipTriggerHandlerRef.current}
+                onMouseEnter={mouseOutTooltipTriggerHandlerRef.current}
+                
             />
         </Tooltip>
     )
+}
 });
 
 TooltipTrigger.displayName = 'TooltipTrigger';

@@ -98,6 +98,7 @@ function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, lin
 
 function setTooltipContentWrapper( 
   setTooltipContent: React.Dispatch<React.SetStateAction<string | React.JSX.Element>> | null,
+  // tooltipContainerRef: React.MutableRefObject<HTMLDivElement | null>,
   // tooltipContent: React.MutableRefObject<string | React.JSX.Element>,
 ){
   return function( content: React.JSX.Element | string) {
@@ -107,7 +108,7 @@ function setTooltipContentWrapper(
 
     // console.log("setTooltipContentWrapper: ici - typeof content: ", typeof content)
     if (typeof content === "string") {
-      setTooltipContent( (<div dangerouslySetInnerHTML={{__html: content}}/>) );
+      setTooltipContent( (<div className="my-tooltip-class" dangerouslySetInnerHTML={{__html: content}}/>) );
     } else {
       setTooltipContent(content);
     }
@@ -123,6 +124,13 @@ function tooltipHandlerFactory(
   setTooltipConfig: React.Dispatch<React.SetStateAction<TooltipTriggerConfig>> | null,
   tooltipConfigRef: React.MutableRefObject<TooltipTriggerConfig|null>,
   setTooltipState: React.Dispatch<React.SetStateAction<string>> | null,
+  overlayRef: React.RefObject<HTMLDivElement>,
+  transformRef: React.MutableRefObject<{
+    scale: number;
+    positionX: number;
+    positionY: number;
+  }>,
+//  tooltipContainerRef: React.MutableRefObject<HTMLDivElement | null>,
 ) {
 
    return (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
@@ -141,13 +149,64 @@ function tooltipHandlerFactory(
       if (cell && cell.cellProps.tooltips) {
         if(event.type === 'mouseover') {
           
+          const rect = element.getBoundingClientRect();
+          const overlayRect =
+          overlayRef.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 0, 0);
+          // const { scale, positionX, positionY } = transformRef.current;
+          let left = (rect.x - overlayRect.x) ;
+          let top = (rect.y - overlayRect.y) ;
+          let placement: any = 'right';
+          let vPos = 'middle', hPos='middle';
+          if (top <0 ) { vPos='bottom'}
+          if (rect.bottom > overlayRect.bottom ) { vPos= 'top' }
+          if ( left < 0 ) { hPos = 'right'; }
+          else if (rect.right > overlayRect.right ) { hPos='left'; }
+
+          if ( vPos === 'top' ) {
+            switch(hPos) {
+              case 'left':
+                placement= 'top-start';
+                break;
+              case 'right':
+                placement= 'top-end';
+                break;
+              default:
+                placement= 'top';
+                break;
+            }
+          } else if ( vPos === 'bottom' ) {
+            switch(hPos) {
+              case 'left':
+                placement= 'bottom-start';
+                break;
+              case 'right':
+                placement= 'bottom-end';
+                break;
+              default:
+                placement= 'bottom';
+                break;
+            }
+          } else if ( vPos === 'middle' ){
+            switch(hPos) {
+              case 'left':
+                placement= 'left';
+                break;
+              case 'right':
+                placement= 'right';
+                break;
+            }
+          }
+          setTooltipConfig({ 
+            x: left,
+            y: top,
+            w: rect.width /* * scale*/,
+            h: rect.height /* * scale*/,
+            elementId: cell.cellIdShort,
+            placement: placement,
+          });
+
           if (cell.cellIdShort !== tooltipConfig.elementId) {
-            const rect = (event.target as SVGGraphicsElement).getBoundingClientRect();
-            setTooltipContent(cell.tooltipContent)
-            setTooltipConfig({ 
-              x: rect.x, y: rect.y, w: rect.width, h:rect.height,
-              elementId: cell.cellIdShort
-            });
+            setTooltipContent(cell.tooltip.tooltipContent)
           }
           setTooltipState('');
 
@@ -201,13 +260,18 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     setTooltipConfigRef.current = setter;
   }, [] );
   const tooltipConfigRef = useRef<TooltipTriggerConfig | null >(null);
+  // const tooltipContainerRef = useRef<HTMLDivElement | null>(null);
   const tooltipTriggerRef = useRef<TooltipTriggerHandle>(null);
   useEffect(()=> {
     if (tooltipTriggerRef.current) {
       tooltipContentRef.current = tooltipTriggerRef.current.getTooltipContentRef();
       tooltipConfigRef.current = tooltipTriggerRef.current.getTooltipConfigRef();
+      // tooltipContainerRef.current = tooltipTriggerRef.current.getTooltipRef();
     }
   }, [])
+
+  const tooltipOverlayRef = useRef<HTMLDivElement | null>(null);
+  const transformRef = useRef({ scale: 1, positionX: 0, positionY: 0 });
 
   //---------------------------------------------------------------------------
   // Dynamic URL Terms: If we load from url we record any variable substitutions
@@ -273,6 +337,8 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
         setTooltipConfigRef.current,
         tooltipConfigRef,
         setTooltipStateRef.current,
+        tooltipOverlayRef,
+        transformRef,
       );
       setHighlighterSelection(highlighterInitialState(options.highlighterSelection, panelConfig.highlighter));
       setInitialized(true);
@@ -466,15 +532,23 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   const svgPaddingLeft = Math.max(0, (width - (svgWidth * svgScale)) * 0.5);
   const svgPaddingTop = Math.max(0, (svgViewHeight - (svgHeight * svgScale)) * 0.5);
 
+  //
+  // const tooltipContainer = <div className="my-tooltip-class" ref={tooltipContainerRef} />
   //---------------------------------------------------------------------------
   // Create the JSX
 
   const jsx = instrument('createJsx', () => (
-    <div>
+    <div style={{ position: "relative", width, height }}>
       <TransformWrapper
         disabled={!options.panZoomEnabled}
         doubleClick={{mode: "reset"}}
-        wheel={{activationKeys: panelConfig?.zoomPanPinch.wheelActivationKeys || []}}>
+        wheel={{activationKeys: panelConfig?.zoomPanPinch.wheelActivationKeys || []}}
+        onTransformed={(ref) => {
+          transformRef.current.scale = ref.state.scale;
+          transformRef.current.positionX = ref.state.positionX;
+          transformRef.current.positionY = ref.state.positionY;
+        }}
+      >
         <TransformComponent>
           <div className={cx(
             styles.wrapper,
@@ -504,29 +578,43 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
               dangerouslySetInnerHTML={{__html: svgElement.outerHTML}}/>
           </div>
         </TransformComponent>
+
+        {/* fixed not transformed overlay, clipped to visible zone. */ }
+        <div
+          ref={tooltipOverlayRef}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            overflow: "hidden", // le tooltip stays in the visible zone
+            pointerEvents: "none", // don't block interactions
+          }}
+        />
       </TransformWrapper>
       {firstSeparator ? <hr/> : undefined}
       <div>{highlighterEnabled && highlighter}</div>
       {secondSeparator ? <hr/> : undefined}
       <div>{timeSliderEnabled && timeSlider}</div>
       {animationControlOwn ? animationControl : undefined}
-      { createPortal(
-        // tooltipTrigger,
-      <TooltipTrigger
-        ref={tooltipTriggerRef}
-        content="Hello Tooltip"
-        config={{ x: 100, y: 100, w: 150, h: 40, elementId: 'tooltip-example' }}
-        state="block"
-        registerSetterSetTooltipContent={registerSetterSetTooltipContent}
-        registerSetterSetTooltipState={registerSetterSetTooltipState}
-        registerSetterSetTooltipConfig={registerSetterSetTooltipConfig}
-        onRefsChange={({ content, config }) => {
-          tooltipContentRef.current = content;
-          tooltipConfigRef.current = config;
-        }}
-        />,
-        document.body
-      )}
+      { tooltipOverlayRef.current && 
+        createPortal(
+          <TooltipTrigger
+            ref={tooltipTriggerRef}
+            content=""
+            config={{ x: 0, y: 0, w: 0, h: 0, elementId: "", placement: 'bottom' }}
+            state=""
+            registerSetterSetTooltipContent={registerSetterSetTooltipContent}
+            registerSetterSetTooltipState={registerSetterSetTooltipState}
+            registerSetterSetTooltipConfig={registerSetterSetTooltipConfig}
+            onRefsChange={({ content, config }) => {
+              tooltipContentRef.current = content;
+              tooltipConfigRef.current = config;
+            }}
+          />,
+          tooltipOverlayRef.current
+        )}
     </div>
   ))();
   return jsx;
