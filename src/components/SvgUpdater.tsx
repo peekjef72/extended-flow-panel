@@ -26,6 +26,7 @@ type TooltipVariableInstanceType = "label" | "labelColor" | "default";
 export type TooltipVariableInstance = {
   varName: string;
   type: TooltipVariableInstanceType;
+  pattern?: RegExp;
 }
 
 export type TooltipVar = {
@@ -254,6 +255,10 @@ function recurseElements(level: number, el: HTMLElement, cellData: SvgCell, cell
   return false;
 }
 
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig: PanelConfig, siteConfig: SiteConfig, 
   ):  SvgAttribs {
   let cells = new Map<string, SvgCell>();
@@ -350,13 +355,23 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
 
             let instance: TooltipVariableInstance = {
               varName: match[2],
-              type: "default"
+              type: "default",
+              pattern: undefined,
             }
             if (match[3] !== undefined) {
               if( ["labelColor", "label"].includes(match[3]) ) {
                 instance.type = match[3] as TooltipVariableInstanceType;
               }
             }
+
+            // Precompute pattern (use literal escape to avoid regexp injection and special chars)
+            try {
+              instance.pattern = new RegExp(escapeRegExp('$' + match[1]), 'g');
+            } catch (e) {
+              // fallback: if for some reason invalid, still store a safe pattern matching the literal
+              instance.pattern = new RegExp('$' + match[1], 'g');
+            }
+
             // console.log("sgvInit(): add tooltip for ", cellIdShort, " var instance type:", match[1], instance.type)
             tooltip.usedInstances.set(match[1],instance)
           }
@@ -652,13 +667,12 @@ function getThresholdBlinkColorCompound(sdb: SvgDriveBase,
   return compound;
 }
 
-export function svgUpdate(svgHolder: SvgHolder, 
+export function svgUpdate(
+    svgHolder: SvgHolder, 
     tsData: TimeSeriesData, 
     highlighterSelection: string | undefined, 
     animationsEnabled: boolean,
-    setTooltipContent: (
-      content: string,
-    ) => void,
+    setTooltipContent: ( content: string ) => void,
     tooltipContentRef: React.MutableRefObject<string>,
     tooltipConfigRef: React.MutableRefObject<TooltipTriggerConfig>,
   ) {
@@ -697,17 +711,17 @@ export function svgUpdate(svgHolder: SvgHolder,
     const cellLabelMappedValue = cellLabelData?.valueMappings ? valueMapping(cellLabelData.valueMappings, cellLabelValue) : null;
     const cellLabel = cellLabelMappedValue || (cellLabelData && (typeof cellLabelValue === 'number') ? formatCellValue(cellLabelData, cellLabelValue) : cellLabelValue);
 
-    const cellStrokeColor = cellData.cellProps.strokeColorCompound ?
-      getThresholdColorCompound(sdb, cellValueSeed, cellData.cellProps.strokeColorCompound, cellBespokeData) :
-      getThresholdColor(sdb, cellValueSeed, cellData.cellProps.strokeColor, cellBespokeData);
+    const cellStrokeColor = cellData.cellProps.strokeColorCompound
+      ? getThresholdColorCompound(sdb, cellValueSeed, cellData.cellProps.strokeColorCompound, cellBespokeData)
+      : getThresholdColor(sdb, cellValueSeed, cellData.cellProps.strokeColor, cellBespokeData);
 
-    const cellFillColor = cellData.cellProps.fillColorCompound ?
-      getThresholdColorCompound(sdb, cellValueSeed, cellData.cellProps.fillColorCompound, cellBespokeData) :
-      getThresholdColor(sdb, cellValueSeed, cellData.cellProps.fillColor, cellBespokeData);
+    const cellFillColor = cellData.cellProps.fillColorCompound
+      ? getThresholdColorCompound(sdb, cellValueSeed, cellData.cellProps.fillColorCompound, cellBespokeData)
+      : getThresholdColor(sdb, cellValueSeed, cellData.cellProps.fillColor, cellBespokeData);
 
-    const cellLabelColor = cellData.cellProps.labelColorCompound ?
-      getThresholdColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData) :
-      getThresholdColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
+    const cellLabelColor = cellData.cellProps.labelColorCompound
+      ? getThresholdColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData)
+      : getThresholdColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
 
     const cellFillLevelData = cellData.cellProps.fillLevel;
     const cellFillLevelSeed = thresholdSeed(sdb, cellFillLevelData, cellValueSeed, cellBespokeData);
@@ -715,161 +729,206 @@ export function svgUpdate(svgHolder: SvgHolder,
     const cellFlowAnimData = cellData.cellProps.flowAnimation;
     const cellFlowAnimSeed = thresholdSeed(sdb, cellFlowAnimData, cellValueSeed, cellBespokeData);
     const cellFlowAnimState = cellFlowAnimData ? getFlowAnimationState(cellFlowAnimData, animationsEnabled ? cellFlowAnimSeed : null ) : null;
-    // let labelBlinkDuration = 0, labelBlinkColor = null
 
     if (cellData.cellProps.labelColor || cellData.cellProps.labelColorCompound) {
-
-      const labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ? cellData.cellProps.labelColor.blinkDurationSecs : 0;
-      const labelBlinkColor = cellData.cellProps.labelColorCompound ?
-        getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData) :
-        getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
+      const labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ?? 0;
+      const labelBlinkColor = cellData.cellProps.labelColorCompound
+        ? getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData)
+        : getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
   
-      if (labelBlinkDuration > 0 && labelBlinkColor !== null){
+      if (labelBlinkDuration > 0 && labelBlinkColor !== null && labelBlinkColor.color){
         cellData.style.innerHTML = `
 @keyframes blinking_${cellId} { 50% { color: ${ labelBlinkColor?.color || cellLabelColor?.color || '' }} }
 .blink_${cellId} { animation: blinking_${cellId} ${labelBlinkDuration}s cubic-bezier(1,-0.27,0,1.36) infinite ;}
 `
+      } else if (cellData.style.innerHTML) {
+        // cleanup if previously set but not needed now
+        cellData.style.innerHTML = '';
       }
     }
 
-    cellData.fillElements.forEach((el: HTMLElement) => {
-      if (cellData.cellProps.labelColor || cellData.cellProps.labelColorCompound) {
-        const labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ? cellData.cellProps.labelColor.blinkDurationSecs : 0;
-        const labelBlinkColor = cellData.cellProps.labelColorCompound ?
-          getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData) :
-          getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
 
-          if (labelBlinkDuration > 0 && labelBlinkColor !== null){
-          el.classList.add(`blink_${cellId}`)
+    // Update fill elements/text elements: cache often used values locally
+    const labelValueForReplace = cellData.text + (cellLabel ?? '');
+
+    if ((cellData.cellProps.labelColor || cellData.cellProps.labelColorCompound) && cellLabelColor) {
+      // cache color string
+      const labelColorStr = cellLabelColor?.color || '';
+      for (const el of cellData.fillElements) {
+        const elAttrib = elementAttribs.get(el.id);
+        // blink class
+        const labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ?? 0;
+        const labelBlinkColor = cellData.cellProps.labelColorCompound
+          ? getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData)
+          : getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
+
+        if (labelBlinkDuration > 0 && labelBlinkColor !== null) {
+          el.classList.add(`blink_${cellId}`);
         } else {
-          el.classList.remove(`blink_${cellId}`)
+          el.classList.remove(`blink_${cellId}`);
         }
-        el.style.color = cellLabelColor?.color || elementAttribs.get(el.id)?.styleColor || '';
-      }
-      if (cellLabelData) {
-        el.replaceChildren(cellData.text + (cellLabel || ''));
-      }
-    });
-    if (cellData.cellProps.strokeColor || cellData.cellProps.strokeColorCompound) {
-      const blinkDuration = cellData.cellProps.strokeColor?.blinkDurationSecs ? cellData.cellProps.strokeColor.blinkDurationSecs : 0;
-      const blinkColor = cellData.cellProps.strokeColorCompound ?
-        getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.strokeColorCompound, cellBespokeData) :
-        getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.strokeColor, cellBespokeData);
 
-      cellData.strokeElements.forEach((el: HTMLElement) => {
-        if (blinkDuration > 0 && blinkColor !== null){
-          setBlinkElement(el, 'stroke', cellStrokeColor?.color, blinkColor?.color, blinkDuration)
+        el.style.color = labelColorStr || elAttrib?.styleColor || '';
+        if (cellLabelData) {
+          // only replace children when value changed could be added later
+          el.replaceChildren(document.createTextNode(labelValueForReplace));
+        }
+      }
+    } else {
+      // no label color handling but still set text if required
+      for (const el of cellData.fillElements) {
+        if (cellLabelData) {
+          el.replaceChildren(document.createTextNode(labelValueForReplace));
+        }
+      }
+    }
+
+    if (cellData.cellProps.strokeColor || cellData.cellProps.strokeColorCompound) {
+      const blinkDuration = cellData.cellProps.strokeColor?.blinkDurationSecs ?? 0;
+      const blinkColor = cellData.cellProps.strokeColorCompound
+        ? getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.strokeColorCompound, cellBespokeData)
+        : getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.strokeColor, cellBespokeData);
+
+      for (const el of cellData.strokeElements) {
+        if (blinkDuration > 0 && blinkColor !== null) {
+          setBlinkElement(el, 'stroke', cellStrokeColor?.color, blinkColor?.color, blinkDuration);
         }
         setStrokeAttribute(el, cellStrokeColor?.color, elementAttribs.get(el.id));
-      });
+      }
     }
-    if (cellData.cellProps.fillColor || cellData.cellProps.fillColorCompound) {
-      const blinkDuration = cellData.cellProps.fillColor?.blinkDurationSecs ? cellData.cellProps.fillColor.blinkDurationSecs : 0;
-      const blinkColor = cellData.cellProps.fillColorCompound ?
-        getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.fillColorCompound, cellBespokeData) :
-        getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.fillColor, cellBespokeData);
 
-      cellData.fillElements.forEach((el: HTMLElement) => {
-        if (blinkDuration > 0 && blinkColor !== null){
-          setBlinkElement(el, 'fill', cellFillColor?.color, blinkColor?.color, blinkDuration)
+    // fill elements handling (blink + set fill)
+    if (cellData.cellProps.fillColor || cellData.cellProps.fillColorCompound) {
+      const blinkDuration = cellData.cellProps.fillColor?.blinkDurationSecs ?? 0;
+      const blinkColor = cellData.cellProps.fillColorCompound
+        ? getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.fillColorCompound, cellBespokeData)
+        : getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.fillColor, cellBespokeData);
+
+      for (const el of cellData.fillElements) {
+        if (blinkDuration > 0 && blinkColor !== null) {
+          setBlinkElement(el, 'fill', cellFillColor?.color, blinkColor?.color, blinkDuration);
         }
         setFillAttribute(el, cellFillColor?.color, elementAttribs.get(el.id));
-      });
-      cellData.textElements.forEach((el: HTMLElement) => {
-        if (blinkDuration > 0 && blinkColor !== null){
-          setBlinkElement(el, 'fill', cellFillColor?.color, blinkColor?.color, blinkDuration)
+      }
+
+      for (const el of cellData.textElements) {
+        if (blinkDuration > 0 && blinkColor !== null) {
+          setBlinkElement(el, 'fill', cellFillColor?.color, blinkColor?.color, blinkDuration);
         }
         setFillAttribute(el, cellFillColor?.color, elementAttribs.get(el.id));
-      });
+      }
     }
+
+    // fill level clipping
     if (cellFillLevelData) {
       cellData.fillClipDrivers.forEach((fillClipDriver) => {
         fillClipDriver(cellFillLevelSeed);
       });
     }
+
+    // flow animation
     if (cellFlowAnimState) {
       cellData.textElements.forEach((el: HTMLElement) => {
         setFlowAnimationAttributes(el, cellFlowAnimState);
       });
     }
+
+    // ---- Tooltip handling (heavy, so keep it compact & safe) ----
     if (cellData.cellProps.tooltips && cellData.cellProps.tooltips.format) {
       let content = cellData.cellProps.tooltips.format;
 
-      cellData.tooltip.usedVars.forEach( (element, key) => {
-      // console.log('svgUpdate(): for ',  cellId, 'update var values key:',key, 'element:', element, "content:", content);
-        
-        switch ( key ) {
-        case "ts":
-          const formater = getValueFormatterIndex()['dateTimeAsSystem'];
-          element.value = formater(currentValue?.ts, 0, 0, "").text;
-          break;
-        case "current":
-          element.value = cellLabel;
-          element.color = cellLabelColor?.color || null;
-          break;
-        default:
-          let cellTooltipValueSeed: any = null;
-          if(element.element?.label) {
-            const cellTooltipsData = element.element.label;
-            const cellTooltipsValueInner = getCellValue(cellTooltipsData, tsData, cellBespokeData);
-            const cellTooltipsValue = cellTooltipsValueInner?.value !== null ? cellTooltipsValueInner?.value : cellValue;
-            cellTooltipValueSeed = variableThresholdScaleValue(variableValues, cellData, cellTooltipsValue);
-            const cellTooltipsMappedValue = cellTooltipsData?.valueMappings ? valueMapping(cellTooltipsData.valueMappings, cellTooltipsValue) : null;
-            element.value = cellTooltipsMappedValue || (cellTooltipsData && (typeof cellTooltipsValue === 'number') ? formatCellValue(cellTooltipsData, cellTooltipsValue) : cellTooltipsValue);
-          }
-          if(element.element?.labelColor && cellTooltipValueSeed) {
-            element.color = getThresholdColor(sdb, cellTooltipValueSeed, element.element.labelColor, cellBespokeData)?.color || null;          }
-          break;
+      // 1) update usedVars values
+      for (const [varKey, element] of cellData.tooltip.usedVars) {
+        // console.log('svgUpdate(): for ',  cellId, 'update var values key:',key, 'element:', element, "content:", content);
+        switch (varKey) {
+          case "ts":
+            const formater = getValueFormatterIndex()['dateTimeAsSystem'];
+            element.value = formater(currentValue?.ts, 0, 0, "").text;
+            break;
+          case "current":
+            element.value = cellLabel;
+            element.color = cellLabelColor?.color || null;
+            break;
+          default:
+            let cellTooltipValueSeed: any = null;
+            if(element.element?.label) {
+              const cellTooltipsData = element.element.label;
+              const cellTooltipsValueInner = getCellValue(cellTooltipsData, tsData, cellBespokeData);
+              const cellTooltipsValue = cellTooltipsValueInner?.value !== null ? cellTooltipsValueInner?.value : cellValue;
+              cellTooltipValueSeed = variableThresholdScaleValue(variableValues, cellData, cellTooltipsValue);
+              const cellTooltipsMappedValue = cellTooltipsData?.valueMappings ? valueMapping(cellTooltipsData.valueMappings, cellTooltipsValue) : null;
+              element.value = cellTooltipsMappedValue || (cellTooltipsData && (typeof cellTooltipsValue === 'number') ? formatCellValue(cellTooltipsData, cellTooltipsValue) : cellTooltipsValue);
+            }
+            if(element.element?.labelColor && cellTooltipValueSeed) {
+              element.color = getThresholdColor(sdb, cellTooltipValueSeed, element.element.labelColor, cellBespokeData)?.color || null;          }
+            break;
         }
-      });
-      cellData.tooltip.usedInstances.forEach( (instance, key) => {
+      }
+
+      // 2) replace instances — ensure we treat the key as literal (escape special chars)
+      for (const [instanceKey, instance] of cellData.tooltip.usedInstances) {
         const element = cellData.tooltip.usedVars.get(instance.varName);
         // console.log('svgUpdate(): for ',  cellId, 'replace var values key:', key, 'instance:', instance, 'element:', element, "content:", content);
-        if (element) {
-          const pattern = new RegExp(`\\$${key}`, 'g');
-          let value = key;
+        if (!element) {
+          continue;
+        }
 
-          switch (instance.type) {
-            case "label":
-              value = element.value;
-              break;
-            case "labelColor":
-              value = element.color;
-              break;
+        const pattern = instance.pattern ?? new RegExp(escapeRegExp(instanceKey), 'g');
+        let value: string | number | any = instanceKey;
 
-            default:
-              value = element.value;
-              if (element.color) {
-                value = `<font style="color: ${element.color};">${value}</font>`
-              }
+        switch (instance.type) {
+          case "label":
+            value = element.value ?? '';
+            break;
+          case "labelColor":
+            value = element.color ?? '';
+            break;
+
+          default:
+            value = element.value ?? '';
+            if (element.color) {
+              value = `<font style="color: ${element.color};">${value}</font>`
+            }
+            break;
+        }
+        // do replacement
+        if (value !== '' && value !== instanceKey) {
+          content = content.replace(pattern, String(value))
+        }
+      }
+
+      // check change to sanitize only if necessary
+      const previousSanitized = cellData.tooltip.tooltipContent;
+      const rawChanged = content !== previousSanitized;
+      // sanitize result once
+      if (rawChanged) {
+        const sanitized = sanitize(content)
+
+        // update tooltip holder and potentially the visible tooltip
+        if ( previousSanitized !== sanitized ) {
+          cellData.tooltip.tooltipContent = sanitized;
+
+          // if( tooltipConfigRef && tooltipConfigRef.current ) {
+          //   console.log('svgUpdate(): tooltipTriggerElementId:', tooltipConfigRef.current?.elementId)
+          // } else {
+          //   console.log('svgUpdate(): tooltipTriggerElementId:null')
+          // }
+          // if( !tooltipConfigRef || !tooltipConfigRef.current ) {
+          //   console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
+          //   return;
+          // }
+          // console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
+
+          // update visible tooltip content by matching tooltipConfigRef
+          const tc = tooltipConfigRef?.current;
+          if (tc?.elementId && cellId === tc.elementId && tooltipContentRef.current !== sanitized) {
+            // console.log('svgUpdate: will update content for cell', tooltipConfigRef.current.elementId)
+            tooltipContentRef.current = sanitized;
+            setTooltipContent(content)
           }
-          content = content.replace(pattern, value)
         }
-      })
-      if (content) {
-        content = sanitize(content)
+        // console.log('svgUpdate: tooltip.content', sanitized)
       }
-      if ( cellData.tooltip.tooltipContent !== content ) {
-        cellData.tooltip.tooltipContent = content;
-
-        // if( tooltipConfigRef && tooltipConfigRef.current ) {
-        //   console.log('svgUpdate(): tooltipTriggerElementId:', tooltipConfigRef.current?.elementId)
-        // } else {
-        //   console.log('svgUpdate(): tooltipTriggerElementId:null')
-        // }
-        // if( !tooltipConfigRef || !tooltipConfigRef.current ) {
-        //   console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
-        //   return;
-        // }
-        // console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
-
-        if (tooltipConfigRef.current.elementId && cellId === tooltipConfigRef.current.elementId && tooltipContentRef.current !== content ) {
-          // console.log('svgUpdate: will update content for cell', tooltipConfigRef.current.elementId)
-          tooltipContentRef.current = content;
-          setTooltipContent(content)
-        }
-      }
-      // console.log('svgUpdate: tooltip.content', content)
     }
   });
 }
