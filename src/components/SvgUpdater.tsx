@@ -23,10 +23,12 @@ import { TooltipTriggerConfig } from './TooltipTrigger';
 
 
 type TooltipVariableInstanceType = "label" | "labelColor" | "default";
+
 export type TooltipVariableInstance = {
   varName: string;
   type: TooltipVariableInstanceType;
   pattern?: RegExp;
+  varString: string;
 }
 
 export type TooltipVar = {
@@ -37,7 +39,8 @@ export type TooltipVar = {
 export type TooltipHolder = {
   tooltipContent: string;
   usedVars: Map<string, TooltipVar>;
-  usedInstances: Map<string, TooltipVariableInstance>;
+  // usedInstances: Map<string, TooltipVariableInstance>;
+  usedInstances: TooltipVariableInstance[];
 }
 
 // Defines the metadata stored against each drivable svg cell
@@ -274,7 +277,8 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
       const tooltip: TooltipHolder = {
         tooltipContent: '',
         usedVars: new Map<string, TooltipVar>(),
-        usedInstances: new Map<string, TooltipVariableInstance>(),
+        // usedInstances: new Map<string, TooltipVariableInstance>(),
+        usedInstances: [],
       }
       const cell = {
         cellIdShort: cellIdShort,
@@ -314,6 +318,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
         if (!cellProps.tooltips.format || cellProps.tooltips.format === '' || cellProps.tooltips.format === 'default') {
           cellProps.tooltips.format = `<span style="display: block; text-align: center;">$ts</span><hr><span>value: $current</span>`;
         }
+        let usedInstances= new Map<string, TooltipVariableInstance>();
         for (const match of cellProps.tooltips.format.matchAll(/\$({?([a-zA-Z_]\w*)(?:\.([a-zA-Z_]\w*))?}?)/g)) {
           // analyze var format.
           // match[1] is the pattern that we will to substitute during render.
@@ -321,7 +326,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
           // match[3] if defined is the attribute name from variable to used, else patten type is default
           
           // if instance is already in map not necessary to prepare again!
-          if ( !tooltip.usedInstances.get(match[1]) ) {
+          if ( !usedInstances.get(match[1]) ) {
             // build tooltips var map or remove name not found in elements
             // check if variable name exists in element list
             if( !tooltip.usedVars.get(match[2]) ) {
@@ -357,6 +362,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
               varName: match[2],
               type: "default",
               pattern: undefined,
+              varString: match[1],
             }
             if (match[3] !== undefined) {
               if( ["labelColor", "label"].includes(match[3]) ) {
@@ -373,7 +379,16 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
             }
 
             // console.log("sgvInit(): add tooltip for ", cellIdShort, " var instance type:", match[1], instance.type)
-            tooltip.usedInstances.set(match[1],instance)
+            usedInstances.set(match[1],instance)
+          }
+        }
+        if (usedInstances.size >0) {
+          const keys = Array.from(usedInstances.keys());
+          for( const key of  keys.sort((a, b) => b.length - a.length) ) {
+            const instance = usedInstances.get(key);
+            if ( instance ) {
+              tooltip.usedInstances.push(instance)
+            }
           }
         }
       }
@@ -866,15 +881,15 @@ export function svgUpdate(
       }
 
       // 2) replace instances — ensure we treat the key as literal (escape special chars)
-      for (const [instanceKey, instance] of cellData.tooltip.usedInstances) {
+      for (const instance of cellData.tooltip.usedInstances) {
         const element = cellData.tooltip.usedVars.get(instance.varName);
         // console.log('svgUpdate(): for ',  cellId, 'replace var values key:', key, 'instance:', instance, 'element:', element, "content:", content);
         if (!element) {
           continue;
         }
 
-        const pattern = instance.pattern ?? new RegExp(escapeRegExp(instanceKey), 'g');
-        let value: string | number | any = instanceKey;
+        const pattern = instance.pattern ?? new RegExp(escapeRegExp(instance.varString), 'g');
+        let value: string | number | any = instance.varString;
 
         switch (instance.type) {
           case "label":
@@ -892,7 +907,7 @@ export function svgUpdate(
             break;
         }
         // do replacement
-        if (value !== '' && value !== instanceKey) {
+        if (value !== '' && value !== instance.varString) {
           content = content.replace(pattern, String(value))
         }
       }

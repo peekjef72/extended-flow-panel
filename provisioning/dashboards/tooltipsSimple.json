@@ -65,7 +65,7 @@
         }
       ],
       "title": "Blinking Color by thresholds",
-      "type": "andrewbmchugh-flow-panel"
+      "type": "extented-flow-panel"
     }
   ],
   "refresh": "",
