@@ -86,10 +86,10 @@ function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, lin
       const attribs = elementAttribs.get(element.id);
       const link = attribs?.link;
       if (link) {
-        const url = constructUrl(link, attribs, linkVariables);
+        const url = constructUrl(link, attribs, linkVariables, getTemplateSrv());
         if (url) {
           const sameTarget = link.sameTab && !event.ctrlKey && !event.shiftKey;
-          window.open(getTemplateSrv().replace(url), (sameTarget ? '_self' : undefined));
+          window.open(url, (sameTarget ? '_self' : undefined));
         }
       }
     }
@@ -358,7 +358,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
 
   const dataConverter = function(arr: any[]) { return arr.map((item: any) => toDataFrame(item)) };
   const dataFrames = instrument('toDataFrame', dataConverter)(data.series || []);
-  let tsData = instrument('transform', seriesTransform)(dataFrames, timeMin, timeMax);
+  let tsData = instrument('transform', seriesTransform)(dataFrames, timeMin, timeMax, panelConfig?.dataRefTransform);
 
   if (options.testDataEnabled) {
     instrument('seriesExtend', seriesExtend)(tsData, panelConfig?.test);

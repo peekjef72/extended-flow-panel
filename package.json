@@ -15,7 +15,7 @@
     "server": "podman compose up --build",
     "sign": "npx --yes @grafana/sign-plugin@latest"
   },
-  "author": "Andrewbmchugh",
+  "author": "jfpik",
   "license": "Apache-2.0",
   "devDependencies": {
     "@babel/core": "^7.21.4",

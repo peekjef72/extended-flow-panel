@@ -6,7 +6,7 @@
   "info": {
     "keywords": [
       "panel",
-      "flow",
+      "flow-extended",
       "workflow",
       "flowchart",
       "draw.io",
@@ -23,11 +23,11 @@
       "large": "img/logo.png"
     },
     "links": [
-      {"name": "Website", "url": "https://github.com/andymchugh/andrewbmchugh-flow-panel"},
-      {"name": "License", "url": "https://github.com/andymchugh/andrewbmchugh-flow-panel/blob/main/LICENSE"},
-      {"name": "YAML Definitions", "url": "https://github.com/andymchugh/andrewbmchugh-flow-panel/tree/main/yaml_defs"},
-      {"name": "Example SVGs and YAML", "url": "https://github.com/andymchugh/andrewbmchugh-flow-panel/tree/main/examples"},
-      {"name": "Provisioned Dashboards and Data", "url": "https://github.com/andymchugh/andrewbmchugh-flow-panel/tree/main/provisioning"}
+      {"name": "Website", "url": "https://github.com/peekjef72/andrewbmchugh-flow-panel"},
+      {"name": "License", "url": "https://github.com/peekjef72/andrewbmchugh-flow-panel/blob/main/LICENSE"},
+      {"name": "YAML Definitions", "url": "https://github.com/peekjef72/andrewbmchugh-flow-panel/tree/main/yaml_defs"},
+      {"name": "Example SVGs and YAML", "url": "https://github.com/peekjef72/andrewbmchugh-flow-panel/tree/main/examples"},
+      {"name": "Provisioned Dashboards and Data", "url": "https://github.com/peekjef72/andrewbmchugh-flow-panel/tree/main/provisioning"}
     ],
     "screenshots": [
       {"name": "Getting Started", "path": "img/example1.png"},
