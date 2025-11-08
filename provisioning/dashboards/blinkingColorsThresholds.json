@@ -69,7 +69,7 @@
         }
       ],
       "title": "Blinking Color by thresholds",
-      "type": "extented-flow-panel"
+      "type": "extended-flow-panel"
     }
   ],
   "preload": false,
