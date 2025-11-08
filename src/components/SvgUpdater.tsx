@@ -459,8 +459,8 @@ export function getCellValue(drive: DataRefDrive | undefined, tsData: TimeSeries
   let value = null, retTs=null;
 
   if (cellBespokeData && drive?.bespokeDataRef) {
-    value = cellBespokeData[drive.bespokeDataRef].value
-    retTs = cellBespokeData[drive.bespokeDataRef].ts;
+    value = cellBespokeData[drive.bespokeDataRef]?.value
+    retTs = cellBespokeData[drive.bespokeDataRef]?.ts;
   }
   else if (drive?.dataRef) {
     const ts = tsData.ts.get(drive.dataRef);
