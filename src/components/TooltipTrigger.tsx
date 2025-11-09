@@ -1,7 +1,30 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import { Tooltip } from '@grafana/ui';
+// import { Popover, Tooltip } from '@grafana/ui';
+import { Popover } from '@grafana/ui';
 import { Placement } from '@popperjs/core';
 
+// function observeClassChange(
+//   element: HTMLElement,
+//   className: string,
+//   onActivate: () => void,
+//   onDeactivate?: () => void
+// ) {
+//   const observer = new MutationObserver((mutations) => {
+//     for (const mutation of mutations) {
+//       if (mutation.type === "attributes" && mutation.attributeName === "class") {
+//         const isActive = element.classList.contains(className);
+//         if (isActive) {
+//           onActivate();
+//         } else {
+//           onDeactivate?.();
+//         }
+//       }
+//     }
+//   });
+
+//   observer.observe(element, { attributes: true });
+//   return observer;
+// }
 
 export type TooltipTriggerConfig = {
   x: number;
@@ -44,6 +67,9 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
     const [tooltipContent, setTooltipContent] = useState<React.JSX.Element | string>(props.content || 'Default Value');
     const [tooltipState, setTooltipState] = useState<string>(props.state || 'none');
     const [tooltipConfig, setTooltipConfig ] = useState<TooltipTriggerConfig>({ x: 0, y: 0, w: 0, h: 0, elementId: '', placement: 'auto'});
+
+    const [open, setOpen] = useState(false);
+    // const svgRef = useRef<SVGRectElement>(null);
 
     const mouseOutTooltipTriggerHandlerRef = useRef<any>(null);
     // const tooltipTriggerRef = useRef<string>(`tooltip-trigger#${Math.random().toString(36)}`);
@@ -111,54 +137,75 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
         });
     }, [tooltipContent, tooltipConfig]);
 
-//------
 
-if (typeof tooltipContent === "string") {
-    return (
-        <Tooltip 
-            content={
-                <div 
-                    className='my-tooltip-class'
-                    dangerouslySetInnerHTML={{__html: tooltipContent}}
-                />}
-            placement={tooltipConfig.placement}
-            >
-             <div
-                style={{
-                    position: 'absolute',
-                    top: tooltipConfig.y,
-                    left: tooltipConfig.x,
-                    width: tooltipConfig.w,
-                    height: tooltipConfig.h,
-                    pointerEvents: 'auto',
-                    display: tooltipState,
+
+
+    // useEffect(() => {
+    //     if (!svgRef.current) return;
+
+    //     const observer = observeClassChange(
+    //         svgRef.current as any,
+    //         "highlighted",
+    //         () => {
+    //             const rect = svgRef.current!.getBoundingClientRect();
+    //       setTooltipConfig({ 
+    //         x: rect.x,
+    //         y: rect.y,
+    //         w: rect.width /* * scale*/,
+    //         h: rect.height /* * scale*/,
+    //         elementId: '',
+    //         placement: 'top',
+    //       });
+    //                     //   setPosition({ x: rect.x + rect.width / 2, y: rect.y });
+    //             setOpen(true);
+    //         },
+    //         () => setOpen(false)
+    //     );
+
+    //     return () => observer.disconnect();
+    // }, []);
+
+    useEffect( () => {
+        if ( tooltipState === '') {
+            setOpen(true)
+        } else {
+            setOpen(false)
+        }
+    }, [tooltipState]);
+    //------
+
+    if (typeof tooltipContent !== "string") {
+        return (
+            // <Tooltip content={tooltipContent} placement={tooltipConfig.placement}>
+            //     <div
+            //         style={{
+            //             position: 'absolute',
+            //             top: tooltipConfig.y,
+            //             left: tooltipConfig.x,
+            //             width: tooltipConfig.w,
+            //             height: tooltipConfig.h,
+            //             pointerEvents: 'auto',
+            //             display: tooltipState,
+            //         }}
+            //         onMouseOut={mouseOutTooltipTriggerHandlerRef.current}
+            //         onMouseEnter={mouseOutTooltipTriggerHandlerRef.current}
+                    
+            //     />
+            // </Tooltip>
+            <Popover
+                show={open}
+                placement={tooltipConfig.placement}
+                referenceElement={{
+                    getBoundingClientRect: () => new DOMRect(tooltipConfig.x, tooltipConfig.y, 0, 0),
                 }}
-                onMouseOut={mouseOutTooltipTriggerHandlerRef.current}
-                onMouseEnter={mouseOutTooltipTriggerHandlerRef.current}
-                
+                content={tooltipContent}
+
             />
-        </Tooltip>
-    )
-} else {
-    return (
-        <Tooltip content={tooltipContent} placement={tooltipConfig.placement}>
-            <div
-                style={{
-                    position: 'absolute',
-                    top: tooltipConfig.y,
-                    left: tooltipConfig.x,
-                    width: tooltipConfig.w,
-                    height: tooltipConfig.h,
-                    pointerEvents: 'auto',
-                    display: tooltipState,
-                }}
-                onMouseOut={mouseOutTooltipTriggerHandlerRef.current}
-                onMouseEnter={mouseOutTooltipTriggerHandlerRef.current}
-                
-            />
-        </Tooltip>
-    )
-}
+        )
+    } else {
+        let dummy = <div></div>
+        return ( open && dummy );
+    }
 });
 
 TooltipTrigger.displayName = 'TooltipTrigger';

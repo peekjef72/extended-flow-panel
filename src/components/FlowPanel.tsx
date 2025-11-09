@@ -105,10 +105,11 @@ function setTooltipContentWrapper(
     if( !setTooltipContent ) {
       return;
     }
+    // const styles = useStyles2(getStyles);
 
     // console.log("setTooltipContentWrapper: ici - typeof content: ", typeof content)
     if (typeof content === "string") {
-      setTooltipContent( (<div className="my-tooltip-class" dangerouslySetInnerHTML={{__html: content}}/>) );
+      setTooltipContent( (<div dangerouslySetInnerHTML={{__html: content}}/>) );
     } else {
       setTooltipContent(content);
     }
@@ -125,29 +126,55 @@ function tooltipHandlerFactory(
   tooltipConfigRef: React.MutableRefObject<TooltipTriggerConfig|null>,
   setTooltipState: React.Dispatch<React.SetStateAction<string>> | null,
   overlayRef: React.RefObject<HTMLDivElement>,
-  transformRef: React.MutableRefObject<{
-    scale: number;
-    positionX: number;
-    positionY: number;
-  }>,
+  currentElementRef: React.RefObject<HTMLElement>,
+  setCurrentTooltipElement: (element: HTMLElement) => void
 //  tooltipContainerRef: React.MutableRefObject<HTMLDivElement | null>,
 ) {
+  let activeElement: HTMLElement | null;
 
-   return (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
+  return (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
+    if (!tooltipConfigRef || !tooltipConfigRef.current || !setTooltipConfig || !setTooltipState) {
+      return;
+    }
     if (event.target) {
+      if (event.type === "mousemove") {
+         if (!activeElement) {
+           return;
+         } else {
+          const config = { 
+            x: event.clientX + 20,
+            y: event.clientY,
+            w: 0,
+            h: 0,
+            elementId: "toto",
+            placement: "top" as any,
+          }
+          setTooltipConfig(config);
+
+         }
+      } else {
       const element = event.target as HTMLElement;
       const attribs = svgAttribs.elementAttribs.get(element.id);
       if (!attribs) {
-        return;
-      }
-      if (!tooltipConfigRef || !tooltipConfigRef.current || !setTooltipConfig || !setTooltipState) {
         return;
       }
       const tooltipConfig = tooltipConfigRef.current;
       // console.log("tooltipHandlerFactory(): tooltipConfig:", tooltipConfig, " - tooltipContent:", tooltipContentRef.current)
       const cell  = svgAttribs.cells.get(attribs.name);
       if (cell && cell.cellProps.tooltips) {
-        if(event.type === 'mouseover') {
+        const cellElement = document.getElementById(cell.cellId)
+        if (cellElement === null) { return; }
+        if (event.type === 'mouseover' ) {
+          if (activeElement === null) {
+            activeElement = cellElement
+          }
+          else if (cellElement.id === activeElement.id) {
+            return;
+          }
+          // console.log('tooltipHandlerFactory: mouseover :' + cell.cellIdShort);
+          console.log('tooltipHandlerFactory: mouseenter :' + cell.cellIdShort, 'currentElementRef id:', currentElementRef.current?.id, "element id:", element.id);
+
+          // console.log("tooltipHandlerFactory(): tooltipConfig:", tooltipConfig, " - tooltipContent:", tooltipContentRef.current)
           
           const rect = element.getBoundingClientRect();
           const overlayRect =
@@ -196,26 +223,38 @@ function tooltipHandlerFactory(
                 break;
             }
           }
-          setTooltipConfig({ 
-            x: left,
-            y: top,
+          // const parentCell = document.getElementById(cell.cellId)
+          // parentCell?.classList.add('highlighted')
+          const config = { 
+            x: event.clientX + 20,
+            y: event.clientY,
             w: rect.width /* * scale*/,
             h: rect.height /* * scale*/,
             elementId: cell.cellIdShort,
             placement: placement,
-          });
+          }
+          setTooltipConfig(config);
 
           if (cell.cellIdShort !== tooltipConfig.elementId) {
             setTooltipContent(cell.tooltip.tooltipContent)
           }
+
+          console.log("tooltipHandlerFactory(): tooltipConfig:", config, " - tooltipContent:", cell.tooltip.tooltipContent)
           setTooltipState('');
 
           // console.log('tooltipHandlerFactory: mouseover :' + cell.cellIdShort, cell);
           event.stopPropagation();
         }
-        // else if(event.type === 'mouseout') {
-        //   console.log('tooltipHandlerFactory: mouseout :' + cell.cellIdShort);
-        // }
+        else if(event.type === 'mouseout') {
+          console.log('tooltipHandlerFactory: mouseleave :' + cell.cellIdShort, 'currentElementRef id:', currentElementRef.current?.id, "element id:", element.id);
+          // const parentCell = document.getElementById(cell.cellId)
+          // parentCell?.classList.remove('highlighted')
+          if ( !cellElement?.contains(event.relatedTarget as HTMLElement) ) { 
+            setTooltipState('none');
+            activeElement = null;
+          }
+        }
+      }
       }
     }
   }
@@ -271,8 +310,11 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   }, [])
 
   const tooltipOverlayRef = useRef<HTMLDivElement | null>(null);
-  const transformRef = useRef({ scale: 1, positionX: 0, positionY: 0 });
+  const tooltipCurrentRef = useRef<HTMLElement | null>(null);
 
+  const setCurrentTooltipElement = function (element: HTMLElement) {
+    tooltipCurrentRef.current = element
+  }
   //---------------------------------------------------------------------------
   // Dynamic URL Terms: If we load from url we record any variable substitutions
   // that occurred so we can force a re-initialize if any of those variables change
@@ -289,7 +331,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   useEffect(() => {
     // console.log("load config")
     svgHolderRef.current = undefined;
-    panelConfigError.current = '';
+    panelConfigError.current = 'test error';
     setInitialized(false);
     setSvgStr(undefined);
     setPanelConfig(undefined);
@@ -338,7 +380,8 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
         tooltipConfigRef,
         setTooltipStateRef.current,
         tooltipOverlayRef,
-        transformRef,
+        tooltipCurrentRef,
+        setCurrentTooltipElement,
       );
       setHighlighterSelection(highlighterInitialState(options.highlighterSelection, panelConfig.highlighter));
       setInitialized(true);
@@ -543,11 +586,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
         disabled={!options.panZoomEnabled}
         doubleClick={{mode: "reset"}}
         wheel={{activationKeys: panelConfig?.zoomPanPinch.wheelActivationKeys || []}}
-        onTransformed={(ref) => {
-          transformRef.current.scale = ref.state.scale;
-          transformRef.current.positionX = ref.state.positionX;
-          transformRef.current.positionY = ref.state.positionY;
-        }}
+
       >
         <TransformComponent>
           <div className={cx(
@@ -571,7 +610,8 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
               )}
               onClick={clickHandlerRef.current}
               onMouseOver={mouseOverHandlerRef.current}
-              // onMouseOut={mouseOverHandlerRef.current}
+              onMouseOut={mouseOverHandlerRef.current}
+              onMouseMove={mouseOverHandlerRef.current}
               // The externally received svg is sanitized when read in via sanitizeSvgStr which uses
               // dompurify. We don't re-sanitize it on each rendering as we are in control of the
               // modifications being made.
