@@ -915,7 +915,7 @@ export function svgUpdate(
       // check change to sanitize only if necessary
       const previousSanitized = cellData.tooltip.tooltipContent;
       const rawChanged = content !== previousSanitized;
-      const tc = tooltipConfigRef?.current;
+      // const tc = tooltipConfigRef?.current;
       // console.log('svgUpdate(): for ',  cellId, 'currentId:', tc?.elementId,
       //   'content:', content, 'prev:', previousSanitized, 'rawChanged:', rawChanged);
       // sanitize result once
@@ -938,7 +938,7 @@ export function svgUpdate(
           // console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
 
           // update visible tooltip content by matching tooltipConfigRef
-          // const tc = tooltipConfigRef?.current;
+          const tc = tooltipConfigRef?.current;
           if (tc?.elementId && cellId === tc.elementId && tooltipContentRef.current !== sanitized) {
             // console.log('svgUpdate: will update content for cell', tooltipConfigRef.current.elementId)
             tooltipContentRef.current = sanitized;
