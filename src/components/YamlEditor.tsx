@@ -13,7 +13,10 @@ export const YamlEditor = (props: any) => {
     editor._domElement.style.resize='vertical'
     editor.updateOptions({'fontSize': 12})
     resizeObs = new ResizeObserver( entries => {
-      editor.getDomNode().parentNode.parentNode.parentNode.style.height = editor.getDomNode().clientHeight + 2 + 'px'
+      const element = editor.getDomNode()
+      if (element && element.parentNode && element.parentNode.parentNode && element.parentNode.parentNode.parentNode) {
+        element.parentNode.parentNode.parentNode.style.height = element.clientHeight + 2 + 'px'
+      }
     })
     resizeObs.observe(editor._domElement)
   }

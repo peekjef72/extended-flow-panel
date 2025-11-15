@@ -96,165 +96,68 @@ function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, lin
   }
 }
 
-function setTooltipContentWrapper( 
-  setTooltipContent: React.Dispatch<React.SetStateAction<string | React.JSX.Element>> | null,
-  // tooltipContainerRef: React.MutableRefObject<HTMLDivElement | null>,
-  // tooltipContent: React.MutableRefObject<string | React.JSX.Element>,
-){
-  return function( content: React.JSX.Element | string) {
-    if( !setTooltipContent ) {
-      return;
-    }
-    // const styles = useStyles2(getStyles);
-
-    // console.log("setTooltipContentWrapper: ici - typeof content: ", typeof content)
-    if (typeof content === "string") {
-      setTooltipContent( (<div dangerouslySetInnerHTML={{__html: content}}/>) );
-    } else {
-      setTooltipContent(content);
-    }
-  }
-}
-
 function tooltipHandlerFactory(
   svgAttribs: SvgAttribs, 
   setTooltipContent: (
       content: React.JSX.Element | string,
     ) => void,
-  tooltipContentRef: React.MutableRefObject<React.JSX.Element | string>,
   setTooltipConfig: React.Dispatch<React.SetStateAction<TooltipTriggerConfig>> | null,
   tooltipConfigRef: React.MutableRefObject<TooltipTriggerConfig|null>,
-  setTooltipState: React.Dispatch<React.SetStateAction<string>> | null,
-  overlayRef: React.RefObject<HTMLDivElement>,
-  currentElementRef: React.RefObject<HTMLElement>,
-  setCurrentTooltipElement: (element: HTMLElement) => void
-//  tooltipContainerRef: React.MutableRefObject<HTMLDivElement | null>,
+  setTooltipOpen: React.Dispatch<React.SetStateAction<boolean>> | null,
+  tooltipTrigger: TooltipTriggerHandle | null,
 ) {
-  let activeElement: HTMLElement | null;
+  let activeElement: HTMLElement | null = null;
 
   return (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
-    if (!tooltipConfigRef || !tooltipConfigRef.current || !setTooltipConfig || !setTooltipState) {
+    if (!tooltipConfigRef || !tooltipConfigRef.current || !setTooltipConfig || !setTooltipOpen) {
       return;
     }
     if (event.target) {
+      const tooltipConfig = tooltipConfigRef.current;
       if (event.type === "mousemove") {
          if (!activeElement) {
            return;
          } else {
-          const config = { 
-            x: event.clientX + 20,
-            y: event.clientY,
-            w: 0,
-            h: 0,
-            elementId: "toto",
-            placement: "top" as any,
-          }
-          setTooltipConfig(config);
 
+          tooltipTrigger?.setMousePosition(event.clientX, event.clientY, "unchanged");
+
+          tooltipConfigRef.current.elementId = activeElement.id;
+          // console.log('tooltipHandlerFactory(): config:', config)
          }
       } else {
-      const element = event.target as HTMLElement;
-      const attribs = svgAttribs.elementAttribs.get(element.id);
-      if (!attribs) {
-        return;
-      }
-      const tooltipConfig = tooltipConfigRef.current;
-      // console.log("tooltipHandlerFactory(): tooltipConfig:", tooltipConfig, " - tooltipContent:", tooltipContentRef.current)
-      const cell  = svgAttribs.cells.get(attribs.name);
-      if (cell && cell.cellProps.tooltips) {
-        const cellElement = document.getElementById(cell.cellId)
-        if (cellElement === null) { return; }
-        if (event.type === 'mouseover' ) {
-          if (activeElement === null) {
-            activeElement = cellElement
-          }
-          else if (cellElement.id === activeElement.id) {
-            return;
-          }
-          // console.log('tooltipHandlerFactory: mouseover :' + cell.cellIdShort);
-          console.log('tooltipHandlerFactory: mouseenter :' + cell.cellIdShort, 'currentElementRef id:', currentElementRef.current?.id, "element id:", element.id);
-
-          // console.log("tooltipHandlerFactory(): tooltipConfig:", tooltipConfig, " - tooltipContent:", tooltipContentRef.current)
-          
-          const rect = element.getBoundingClientRect();
-          const overlayRect =
-          overlayRef.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 0, 0);
-          // const { scale, positionX, positionY } = transformRef.current;
-          let left = (rect.x - overlayRect.x) ;
-          let top = (rect.y - overlayRect.y) ;
-          let placement: any = 'right';
-          let vPos = 'middle', hPos='middle';
-          if (top <0 ) { vPos='bottom'}
-          if (rect.bottom > overlayRect.bottom ) { vPos= 'top' }
-          if ( left < 0 ) { hPos = 'right'; }
-          else if (rect.right > overlayRect.right ) { hPos='left'; }
-
-          if ( vPos === 'top' ) {
-            switch(hPos) {
-              case 'left':
-                placement= 'top-start';
-                break;
-              case 'right':
-                placement= 'top-end';
-                break;
-              default:
-                placement= 'top';
-                break;
-            }
-          } else if ( vPos === 'bottom' ) {
-            switch(hPos) {
-              case 'left':
-                placement= 'bottom-start';
-                break;
-              case 'right':
-                placement= 'bottom-end';
-                break;
-              default:
-                placement= 'bottom';
-                break;
-            }
-          } else if ( vPos === 'middle' ){
-            switch(hPos) {
-              case 'left':
-                placement= 'left';
-                break;
-              case 'right':
-                placement= 'right';
-                break;
-            }
-          }
-          // const parentCell = document.getElementById(cell.cellId)
-          // parentCell?.classList.add('highlighted')
-          const config = { 
-            x: event.clientX + 20,
-            y: event.clientY,
-            w: rect.width /* * scale*/,
-            h: rect.height /* * scale*/,
-            elementId: cell.cellIdShort,
-            placement: placement,
-          }
-          setTooltipConfig(config);
-
-          if (cell.cellIdShort !== tooltipConfig.elementId) {
-            setTooltipContent(cell.tooltip.tooltipContent)
-          }
-
-          console.log("tooltipHandlerFactory(): tooltipConfig:", config, " - tooltipContent:", cell.tooltip.tooltipContent)
-          setTooltipState('');
-
-          // console.log('tooltipHandlerFactory: mouseover :' + cell.cellIdShort, cell);
-          event.stopPropagation();
+        const element = event.target as HTMLElement;
+        const attribs = svgAttribs.elementAttribs.get(element.id);
+        if (!attribs) {
+          return;
         }
-        else if(event.type === 'mouseout') {
-          console.log('tooltipHandlerFactory: mouseleave :' + cell.cellIdShort, 'currentElementRef id:', currentElementRef.current?.id, "element id:", element.id);
-          // const parentCell = document.getElementById(cell.cellId)
-          // parentCell?.classList.remove('highlighted')
-          if ( !cellElement?.contains(event.relatedTarget as HTMLElement) ) { 
-            setTooltipState('none');
-            activeElement = null;
+        // console.log("tooltipHandlerFactory(): tooltipConfig:", tooltipConfig, " - tooltipContent:", tooltipContentRef.current)
+        const cell  = svgAttribs.cells.get(attribs.name);
+        if (cell && cell.cellProps.tooltips) {
+          const cellElement = document.getElementById(cell.cellId)
+          if (cellElement === null) { return; }
+          if (event.type === 'mouseover' ) {
+            if (activeElement === null) {
+              activeElement = cellElement
+            }
+            else if (cellElement.id === activeElement.id) {
+              return;
+            }
+            // console.log("tooltipHandlerFactory(): tooltipConfig:", tooltipConfig, " - tooltipContent:", tooltipContentRef.current)
+
+            if (cell.cellIdShort !== tooltipConfig.elementId) {
+              setTooltipContent(cell.tooltip.tooltipContent)
+            }
+            tooltipTrigger?.setMousePosition(event.clientX, event.clientY, cell.cellIdShort);
+            // console.log('tooltipHandlerFactory: mouseover :' + cell.cellIdShort, cell);
+            // event.stopPropagation();
+          }
+          else if(event.type === 'mouseout') {
+            if ( !cellElement?.contains(event.relatedTarget as HTMLElement) ) { 
+              setTooltipOpen(false);
+              activeElement = null;
+            }
           }
         }
-      }
       }
     }
   }
@@ -288,33 +191,53 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     setTooltipContentRef.current = setter;
   }, [] );
   const tooltipContentRef = useRef<React.JSX.Element | string >("");
+  const tooltipContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const setTooltipStateRef = useRef<React.Dispatch<React.SetStateAction<string>> | null>(null);
-  const registerSetterSetTooltipState = useCallback( (setter: React.Dispatch<React.SetStateAction<string>>) => {
-    setTooltipStateRef.current = setter;
+  function setTooltipContentWrapper( ){
+    return function( content: React.JSX.Element | string) {
+      if( !setTooltipContentRef.current ) {
+        return;
+      }
+
+      // console.log("setTooltipContentWrapper: ici - typeof content: ", typeof content)
+      if (typeof content === "string") {
+        setTooltipContentRef.current( (<div ref={tooltipContainerRef} dangerouslySetInnerHTML={{__html: content}}/>) );
+      } else {
+        setTooltipContentRef.current( (<div ref={tooltipContainerRef}>{content}</div>) );
+      }
+    }
+  }
+  useEffect( () =>{
+      if (tooltipContainerRef && tooltipContainerRef.current) {
+            const containerRect = tooltipContainerRef.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 0, 0);
+            console.log('FlowPanel.useEffect(/tooltipContainerRef): container rect:', containerRect);
+      }
+    }, [tooltipContainerRef.current]
+  )
+  const setTooltipOpenRef = useRef<React.Dispatch<React.SetStateAction<boolean>> | null>(null);
+  const registerSetterSetTooltipOpen = useCallback( (setter: React.Dispatch<React.SetStateAction<boolean>>) => {
+    setTooltipOpenRef.current = setter;
   }, [] );
 
   const setTooltipConfigRef = useRef<React.Dispatch<React.SetStateAction<TooltipTriggerConfig>> | null>(null);
   const registerSetterSetTooltipConfig = useCallback( (setter: React.Dispatch<React.SetStateAction<TooltipTriggerConfig>>) => {
     setTooltipConfigRef.current = setter;
   }, [] );
-  const tooltipConfigRef = useRef<TooltipTriggerConfig | null >(null);
+  const tooltipConfigRef = useRef<TooltipTriggerConfig>({ x: 0, y: 0, elementId: "" });
   // const tooltipContainerRef = useRef<HTMLDivElement | null>(null);
   const tooltipTriggerRef = useRef<TooltipTriggerHandle>(null);
   useEffect(()=> {
     if (tooltipTriggerRef.current) {
+      // tooltipTriggerRef.current.setContainerDim(0,0);
       tooltipContentRef.current = tooltipTriggerRef.current.getTooltipContentRef();
       tooltipConfigRef.current = tooltipTriggerRef.current.getTooltipConfigRef();
+      console.log("useEffect(/tooltipTriggerRef): tooltipConfigRef", tooltipConfigRef);
       // tooltipContainerRef.current = tooltipTriggerRef.current.getTooltipRef();
     }
-  }, [])
+  }, [tooltipTriggerRef.current])
 
   const tooltipOverlayRef = useRef<HTMLDivElement | null>(null);
-  const tooltipCurrentRef = useRef<HTMLElement | null>(null);
-
-  const setCurrentTooltipElement = function (element: HTMLElement) {
-    tooltipCurrentRef.current = element
-  }
+ 
   //---------------------------------------------------------------------------
   // Dynamic URL Terms: If we load from url we record any variable substitutions
   // that occurred so we can force a re-initialize if any of those variables change
@@ -361,6 +284,13 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   //---------------------------------------------------------------------------
   // Initialize DOM and config
 
+  useEffect( () => {
+    if (tooltipOverlayRef.current) {
+      const overlayRect = tooltipOverlayRef.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 0, 0);
+      tooltipTriggerRef.current?.setOverlayRect(overlayRect);
+    }
+  }, [tooltipOverlayRef.current])
+
   useEffect(() => {
     if (svgStr && panelConfig && siteConfig) {
       configInit(siteConfig, panelConfig, grafanaTheme.current.isDark);
@@ -374,14 +304,11 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
       clickHandlerRef.current = clickHandlerFactory(svgAttribs.elementAttribs, panelConfig.linkVariables);
       mouseOverHandlerRef.current = tooltipHandlerFactory(
         svgAttribs,
-        setTooltipContentWrapper(setTooltipContentRef.current),
-        tooltipContentRef,
+        setTooltipContentWrapper(),
         setTooltipConfigRef.current,
         tooltipConfigRef,
-        setTooltipStateRef.current,
-        tooltipOverlayRef,
-        tooltipCurrentRef,
-        setCurrentTooltipElement,
+        setTooltipOpenRef.current,
+        tooltipTriggerRef.current,
       );
       setHighlighterSelection(highlighterInitialState(options.highlighterSelection, panelConfig.highlighter));
       setInitialized(true);
@@ -434,7 +361,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
       tsData,
       highlighterSelection,
       animationsEnabled,
-      setTooltipContentWrapper(setTooltipContentRef.current),
+      setTooltipContentWrapper(),
       tooltipContentRef,
       tooltipConfigRef,
     );
@@ -575,8 +502,6 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   const svgPaddingLeft = Math.max(0, (width - (svgWidth * svgScale)) * 0.5);
   const svgPaddingTop = Math.max(0, (svgViewHeight - (svgHeight * svgScale)) * 0.5);
 
-  //
-  // const tooltipContainer = <div className="my-tooltip-class" ref={tooltipContainerRef} />
   //---------------------------------------------------------------------------
   // Create the JSX
 
@@ -628,7 +553,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
             left: 0,
             right: 0,
             bottom: 0,
-            overflow: "hidden", // le tooltip stays in the visible zone
+            // overflow: "hidden", // le tooltip stays in the visible zone
             pointerEvents: "none", // don't block interactions
           }}
         />
@@ -643,15 +568,11 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
           <TooltipTrigger
             ref={tooltipTriggerRef}
             content=""
-            config={{ x: 0, y: 0, w: 0, h: 0, elementId: "", placement: 'bottom' }}
-            state=""
+            config={tooltipConfigRef.current}
+            open={false}
             registerSetterSetTooltipContent={registerSetterSetTooltipContent}
-            registerSetterSetTooltipState={registerSetterSetTooltipState}
+            registerSetterSetTooltipOpen={registerSetterSetTooltipOpen}
             registerSetterSetTooltipConfig={registerSetterSetTooltipConfig}
-            onRefsChange={({ content, config }) => {
-              tooltipContentRef.current = content;
-              tooltipConfigRef.current = config;
-            }}
           />,
           tooltipOverlayRef.current
         )}

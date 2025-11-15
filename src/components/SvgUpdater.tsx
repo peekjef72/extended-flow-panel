@@ -883,7 +883,7 @@ export function svgUpdate(
       // 2) replace instances — ensure we treat the key as literal (escape special chars)
       for (const instance of cellData.tooltip.usedInstances) {
         const element = cellData.tooltip.usedVars.get(instance.varName);
-        // console.log('svgUpdate(): for ',  cellId, 'replace var values key:', key, 'instance:', instance, 'element:', element, "content:", content);
+        // console.log('svgUpdate(): for ',  cellId, 'instance:', instance, 'element:', element, "content:", content);
         if (!element) {
           continue;
         }
@@ -915,6 +915,9 @@ export function svgUpdate(
       // check change to sanitize only if necessary
       const previousSanitized = cellData.tooltip.tooltipContent;
       const rawChanged = content !== previousSanitized;
+      const tc = tooltipConfigRef?.current;
+      // console.log('svgUpdate(): for ',  cellId, 'currentId:', tc?.elementId,
+      //   'content:', content, 'prev:', previousSanitized, 'rawChanged:', rawChanged);
       // sanitize result once
       if (rawChanged) {
         const sanitized = sanitize(content)
@@ -935,7 +938,7 @@ export function svgUpdate(
           // console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
 
           // update visible tooltip content by matching tooltipConfigRef
-          const tc = tooltipConfigRef?.current;
+          // const tc = tooltipConfigRef?.current;
           if (tc?.elementId && cellId === tc.elementId && tooltipContentRef.current !== sanitized) {
             // console.log('svgUpdate: will update content for cell', tooltipConfigRef.current.elementId)
             tooltipContentRef.current = sanitized;
