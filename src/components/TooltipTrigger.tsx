@@ -30,7 +30,6 @@ import { css } from '@emotion/css';
 export type TooltipTriggerConfig = {
   x: number;
   y: number;
-  elementId: string;
 }
 
 type TooltipTriggerInternalConfig = TooltipTriggerConfig & {
@@ -78,7 +77,7 @@ function getPosition(config: TooltipTriggerInternalConfig) {
 
 export interface TooltipTriggerProps {
     content: React.JSX.Element | string | undefined;
-    config: TooltipTriggerConfig | undefined;
+    config: TooltipTriggerConfig | null;
     open: boolean | undefined;
 
     registerSetterSetTooltipContent: (
@@ -101,9 +100,9 @@ export interface TooltipTriggerProps {
 export type TooltipTriggerHandle = {
     // setContainerDim: (w: number, h: number) => void;
     setOverlayRect: (rect: DOMRect) => void;
-    setMousePosition: ( mouseX: number, mouseY: number, elementId: string) => void,
+    setMousePosition: ( mouseX: number, mouseY: number) => void,
     getTooltipContentRef: () => React.JSX.Element | string;
-    getTooltipConfigRef: () => TooltipTriggerConfig;
+    // getTooltipConfigRef: () => TooltipTriggerConfig;
 }
 
 export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerProps>((props, ref) => {
@@ -112,7 +111,6 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
     const [tooltipConfig, setTooltipConfig ] = useState<TooltipTriggerConfig>(props.config || {
         x: 0,
         y: 0,
-        elementId: '',
     });
 
 
@@ -122,7 +120,6 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
             y: props.config?.y || 0,
             container: { width: 0, height: 0},
             overlayRect: new DOMRect(0, 0, 0, 0),
-            elementId: props.config?.elementId || '',
         });
 
   const tooltipContainerRef = useRef<HTMLDivElement | null>(null);
@@ -159,19 +156,15 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
                 // console.log('TooltipTrigger()/setOverlayRect: rect', rect);
             }
         },
-        setMousePosition( mouseX: number, mouseY: number, elementId: string) {
+        setMousePosition( mouseX: number, mouseY: number) {
             if (tooltipConfigRef.current) {
                 tooltipConfigRef.current.x = mouseX;
                 tooltipConfigRef.current.y = mouseY;
-                if (elementId != "unchanged") {
-                    tooltipConfigRef.current.elementId = elementId;
-                }
-                // console.log('TooltipTrigger()/setMousePosition(): (x,y,elementId)', [mouseX, mouseY, tooltipConfigRef.current.elementId]);
+                // console.log('TooltipTrigger()/setMousePosition(): (x,y)', [mouseX, mouseY]);
                 const [left, top] = getPosition(tooltipConfigRef.current);
                 const config:TooltipTriggerConfig = { 
                     x: left,
                     y: top,
-                    elementId: tooltipConfigRef.current.elementId,
                 }
                 setTooltipConfig(config)
                 setTooltipOpen(true);
@@ -181,9 +174,9 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
         getTooltipContentRef() {
             return tooltipContentRef?.current;
         },
-        getTooltipConfigRef() {
-            return tooltipConfigRef?.current;
-        },
+        // getTooltipConfigRef() {
+        //     return tooltipConfigRef?.current;
+        // },
     }));
 
     useEffect( () => {
@@ -192,7 +185,6 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
         }
         tooltipConfigRef.current.x = tooltipConfig.x;
         tooltipConfigRef.current.y = tooltipConfig.y;
-        tooltipConfigRef.current.elementId = tooltipConfig.elementId;
         // console.log('TooltipTrigger(/useEffect(tooltipConfig)): src tooltipConfig:', tooltipConfig, 'dst tooltipConfigRef', tooltipConfigRef.current)
     }, [tooltipConfig]);
 
