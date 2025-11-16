@@ -513,7 +513,9 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
 
       >
         <TransformComponent>
-          <div className={cx(
+          <div 
+            ref={tooltipOverlayRef}
+            className={cx(
             styles.wrapper,
             css`
             height: ${svgViewHeight}px;
@@ -543,19 +545,6 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
           </div>
         </TransformComponent>
 
-        {/* fixed not transformed overlay, clipped to visible zone. */ }
-        <div
-          ref={tooltipOverlayRef}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            // overflow: "hidden", // le tooltip stays in the visible zone
-            pointerEvents: "none", // don't block interactions
-          }}
-        />
       </TransformWrapper>
       {firstSeparator ? <hr/> : undefined}
       <div>{highlighterEnabled && highlighter}</div>

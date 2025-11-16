@@ -8,6 +8,8 @@ export type TimeSeries = {
     values: number[];
   }
   values: Array<number | string | null>;
+  labels: Map<string, string>;
+  aggregations: Map<string, number>;
 };
 
 export type TimeSeriesData = {
@@ -39,6 +41,8 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
     return {
       time: {values: timeValues},
       values: dataValues,
+      labels: new Map(),
+      aggregations: new Map(),
     };
   }
 
@@ -61,7 +65,7 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
   if (testConfig?.testDataNoTime) {
     const name = 'test-data-no-time';
     if (!tsData.ts.get(name)) {
-      tsData.ts.set(name, {values: [123], time: {values: [0], valuesIndex: null}});
+      tsData.ts.set(name, {values: [123], time: {values: [0], valuesIndex: null}, labels: new Map(), aggregations: new Map()});
     }
   }
 }
@@ -126,7 +130,33 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
           }
           else {
             const name = applyNamespace(getFieldDisplayName(ts, frame));
-            tsNamed[name] = {values: ts.values, time: null};
+            const labels = new Map<string, string>();
+            const aggregations = new Map<string, number>();
+            if (ts.labels) {
+              for ( const [key, value] of Object.entries(ts.labels)) {
+                if ( typeof value === 'string' ) {
+                  labels.set(key,value)
+                }
+              }
+            }
+            if (ts.state) {
+              let src = undefined;
+              if (ts.state.calc ) {
+                src = ts.state.calc
+              }
+              if (ts.state.range ) {
+                src = ts.state.range
+              }
+              if( src != null ) {
+                for ( const [key, value] of Object.entries(src)) {
+                  if ( typeof value === 'number' ) {
+                    aggregations.set(key,value)
+                  }
+                }
+              }
+            }
+
+            tsNamed[name] = {values: ts.values, time: null, labels: labels, aggregations: aggregations};
           }
         });
       }

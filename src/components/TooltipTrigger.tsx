@@ -1,31 +1,8 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-// import { Popover, Tooltip } from '@grafana/ui';
 import { GrafanaTheme2} from '@grafana/data';
 import { Popover, useStyles2 } from '@grafana/ui';
 import { css } from '@emotion/css';
 
-// function observeClassChange(
-//   element: HTMLElement,
-//   className: string,
-//   onActivate: () => void,
-//   onDeactivate?: () => void
-// ) {
-//   const observer = new MutationObserver((mutations) => {
-//     for (const mutation of mutations) {
-//       if (mutation.type === "attributes" && mutation.attributeName === "class") {
-//         const isActive = element.classList.contains(className);
-//         if (isActive) {
-//           onActivate();
-//         } else {
-//           onDeactivate?.();
-//         }
-//       }
-//     }
-//   });
-
-//   observer.observe(element, { attributes: true });
-//   return observer;
-// }
 
 export type TooltipTriggerConfig = {
   x: number;
@@ -39,23 +16,41 @@ type TooltipTriggerInternalConfig = TooltipTriggerConfig & {
 
 function getPosition(config: TooltipTriggerInternalConfig) {
     const mouseX = config.x, mouseY = config.y;
-    let left = (mouseX - config.overlayRect.x) ;
-    let top = mouseY - ( config.container.height / 2 );
     let vPos = 'middle', hPos='right';
     const paddingLeft = 20, paddingTop = 20;
+
+    // let left = (mouseX - config.overlayRect.x) ;
+    let top = mouseY - ( config.container.height / 2 );
+    let left = mouseX - ( config.container.width / 2 ) ;
     
-    if (top < config.overlayRect.top ) { vPos='top'}
-    if ( mouseY + config.container.height + paddingTop > config.overlayRect.bottom ) { vPos= 'bottom' }
-    if ( left < 0 ) { hPos = 'right'; }
-    else if (mouseX + config.container.width + paddingLeft > config.overlayRect.right ) { hPos='left'; }
+    // console.log('TooltipTrigger.getPosition(): config', config, 'left:', left, 'top:', top)
+    
+    if (top < config.overlayRect.top ) {
+        vPos='top';
+    }
+    else if ( mouseY + config.container.height / 2 > config.overlayRect.bottom ) {
+        vPos= 'bottom';
+    }
+    if ( left < config.overlayRect.left ) {
+        hPos = 'right';
+    }
+    else if ( mouseX + config.container.width / 2 > config.overlayRect.right ) {
+        hPos='left';
+    }
 
     // if ( vPos === 'top' ) {
     switch ( vPos ) {
         case 'top':
             top = mouseY + paddingTop ;
+            if(hPos === 'right') {
+                hPos = 'middle';
+            }
             break;
         case 'bottom':
             top = mouseY - ( config.container.height + paddingTop );
+            if(hPos === 'right') {
+                hPos = 'middle';
+            }
             break;
         case 'middle':
             // this is the default value... to set again.
@@ -69,6 +64,15 @@ function getPosition(config: TooltipTriggerInternalConfig) {
             break;
         case 'right':
             left = mouseX + paddingLeft;
+            break;
+        case 'middle':
+            left = mouseX - ( config.container.width / 2 ) ;
+            if (left < config.overlayRect.left) {
+                left = mouseX + paddingLeft;
+            } else if (left > config.overlayRect.right) {
+                left = mouseX - ( config.container.width + paddingLeft );
+            }
+            // console.log('TooltipTrigger.getPosition(): left', left, 'config', config)
             break;
     }
 
@@ -146,8 +150,6 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
             ? tooltipContent.props?.dangerouslySetInnerHTML?.__html ?? ''
             : tooltipContent;
 
-    // tooltipConfigRef.current = tooltipConfig;
-
     useImperativeHandle(ref, () => ({
 
         setOverlayRect(rect: DOMRect) {
@@ -174,9 +176,6 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
         getTooltipContentRef() {
             return tooltipContentRef?.current;
         },
-        // getTooltipConfigRef() {
-        //     return tooltipConfigRef?.current;
-        // },
     }));
 
     useEffect( () => {
