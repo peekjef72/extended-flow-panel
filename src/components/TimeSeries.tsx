@@ -25,7 +25,7 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
   const dataSparse = testConfig?.testDataSparse;
   const dataExtendedZero = testConfig?.testDataExtendedZero;
   const baseOffset = typeof testConfig?.testDataBaseOffset === 'number' ? testConfig.testDataBaseOffset : 1;
-  const create = function(datapoints: number, scalar: number, fn: (inp: number) => number, asString: boolean) {
+  const create = function(datapoints: number, scalar: number, fn: (inp: number) => number, asString: boolean, labels: Map<string,string>| null) {
     const intervalTime = Math.ceil((timeMax - timeMin) / datapoints);
     const intervalValue = 2 * Math.PI / datapoints;
     let timeValues = [];
@@ -38,28 +38,32 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
       const val2 = asString && (typeof val1 === 'number') ? '*' + Math.ceil(val1).toString() + '*' : val1;
       dataValues.push(val2);
     }
+    if (labels === null ) {
+      labels = new Map();
+    }
+
     return {
       time: {values: timeValues},
       values: dataValues,
-      labels: new Map(),
+      labels: labels,
       aggregations: new Map(),
     };
   }
 
   let dataSets = [
-    {name: 'test-data-small-sin', datapoints: 75, scalar: 100, fn: Math.sin, asString: false},
-    {name: 'test-data-large-sin', datapoints: 50, scalar: 500, fn: Math.sin, asString: false},
-    {name: 'test-data-small-cos', datapoints: 60, scalar: 100, fn: Math.cos, asString: false},
-    {name: 'test-data-large-cos', datapoints: 88, scalar: 500, fn: Math.cos, asString: false},
+    {name: 'test-data-small-sin', datapoints: 75, scalar: 100, fn: Math.sin, asString: false, labels: new Map<string,string>([['label1', 'value1'], ['label2_num', '2'],]) },
+    {name: 'test-data-large-sin', datapoints: 50, scalar: 500, fn: Math.sin, asString: false, labels: null},
+    {name: 'test-data-small-cos', datapoints: 60, scalar: 100, fn: Math.cos, asString: false, labels: null},
+    {name: 'test-data-large-cos', datapoints: 88, scalar: 500, fn: Math.cos, asString: false, labels: null},
   ];
 
   if (testConfig?.testDataStringData) {
-    dataSets.push({name: 'test-data-string', datapoints: 65, scalar: 500, fn: Math.cos, asString: true});
+    dataSets.push({name: 'test-data-string', datapoints: 65, scalar: 500, fn: Math.cos, asString: true, labels: null});
   }
 
   dataSets.forEach((ds) => {
     if (!tsData.ts.get(ds.name)) {
-      tsData.ts.set(ds.name, create(ds.datapoints, ds.scalar, ds.fn, ds.asString));
+      tsData.ts.set(ds.name, create(ds.datapoints, ds.scalar, ds.fn, ds.asString, ds.labels));
     }
   });
   if (testConfig?.testDataNoTime) {

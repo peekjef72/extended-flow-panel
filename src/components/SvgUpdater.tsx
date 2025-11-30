@@ -26,6 +26,7 @@ export type TooltipVariableInstance = {
   varName: string;
   type: TooltipVariableInstanceType;
   pattern?: RegExp;
+  // the "whole" string to substitute in pattern 
   varString: string;
 }
 
@@ -53,8 +54,6 @@ export type SvgCell = {
   cellProps: PanelConfigCell;
   variableThresholdScalars: Map<string, VariableThresholdScalars[]>;
   style: HTMLElement;
-  // tooltipContent: string;
-  // tooltipVars: Map<string, { element: PanelConfigTooltipsElement | null, value: any, color: any }>;
   tooltip: TooltipHolder;
 
 };
@@ -289,8 +288,6 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
         cellProps: cellProps,
         style: doc.createElement("style"),
         variableThresholdScalars: new Map<string, VariableThresholdScalars[]>(),
-        // tooltipContent: '',
-        // tooltipVars: new Map<string, { element: PanelConfigTooltipsElement | null, value: any, color: any }>(),
         tooltip: tooltip,
       };
       cells.set(cellIdShort, cell);
@@ -321,7 +318,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
           // analyze var format.
           // match[1] is the pattern that we will to substitute during render.
           // match[2] is the variable name
-          // match[3] if defined is the attribute name from variable to used, else patten type is default
+          // match[3] if defined is the attribute name from variable to used, else pattern type is default
           
           // if instance is already in map not necessary to prepare again!
           if ( !usedInstances.get(match[1]) ) {
@@ -450,22 +447,31 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
 export type GetCellValueType = {
   value: string|number| any;
   ts: number|any;
+  labels: any;
+  aggregations: any;
 }
 
-export function getCellValue(drive: DataRefDrive | undefined, tsData: TimeSeriesData, cellBespokeData: any): GetCellValueType {
+export function getCellValue(
+  drive: DataRefDrive | undefined,
+  tsData: TimeSeriesData,
+  cellBespokeData: any,
+): GetCellValueType {
   // Return bespoke value if defined
-  let value = null, retTs=null;
+  let value = null, retTs=null, labels=null, agg = null;
 
   if (cellBespokeData && drive?.bespokeDataRef) {
     value = cellBespokeData[drive.bespokeDataRef]?.value
     retTs = cellBespokeData[drive.bespokeDataRef]?.ts;
+    labels = cellBespokeData[drive.bespokeDataRef]?.labels;
+    agg = cellBespokeData[drive.bespokeDataRef]?.aggregations;
   }
   else if (drive?.dataRef) {
     const ts = tsData.ts.get(drive.dataRef);
     if (ts && (typeof ts.time.valuesIndex === 'number')) {
       value = ts.values[ts.time.valuesIndex];
       retTs = ts.time.values[ts.time.valuesIndex];
-
+      labels = ts.labels;
+      agg = ts.aggregations;          
       // lastNotNull results in a walkback till a non null value is found
       if (drive.datapoint === 'lastNotNull') {
         for (let i = ts.time.valuesIndex; i >= 0; i--) {
@@ -478,7 +484,7 @@ export function getCellValue(drive: DataRefDrive | undefined, tsData: TimeSeries
       }
     }
   }
-  return { value: value, ts: retTs };
+  return { value: value, ts: retTs, labels: labels, aggregations: agg };
 }
 
 export function valueMapping(valueMappings: FlowValueMapping[], value: number | string | null) {
@@ -848,7 +854,8 @@ export function svgUpdate(
 
     // ---- Tooltip handling (heavy, so keep it compact & safe) ----
     if (cellData.cellProps.tooltips && cellData.cellProps.tooltips.format) {
-      let content = cellData.cellProps.tooltips.format;
+      // get format line end trimmed
+      let content = cellData.cellProps.tooltips.format.replace(/\s*\r?\n\s*/g, '');
 
       // 1) update usedVars values
       for (const [varKey, element] of cellData.tooltip.usedVars) {

@@ -18,6 +18,8 @@ type Utils = {
 type NamespacedData =  {
   utils: Utils;
   data: any;
+  labels: any;
+  aggregations: any;
   data_ts: any;
   // plus client defined variables
 };
@@ -194,6 +196,8 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
       const vars = Object.fromEntries([
         ['utils', clientExposedUtils(highlighterSelection || '')],
         ['data', {}],
+        ['labels', {}],
+        ['aggregations', {}],
         ...handler.clientState.constants]);
       namespacedData.set(namespace, vars);
     }
@@ -206,6 +210,10 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
         const drive = {dataRef: dataRef, bespokeDataRef: undefined, datapoint: bespokeDataDatapoint};
         const dataValue = getCellValue(drive, tsData, null);
         dataStore.data[dataRef] = dataValue.value;
+        dataStore.labels[dataRef] = Object.fromEntries(dataValue.labels);
+        dataStore.aggregations[dataRef] = Object.fromEntries(dataValue.aggregations);
+        // const data = { 'value': dataValue.value, 'labels': dataValue.labels, 'aggregations': dataValue.aggregations }
+        // dataStore.data[dataRef] = data;
         current_ts += dataValue.ts;
         count_ts ++;
       }
@@ -261,7 +269,7 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
     for (const [k, v] of Object.entries(dataStore)) {
       if ( !['data', 'utils'].includes(k) && ( typeof v === "number" || typeof v === "string" ) ) {
         const obj = dataStore as any;
-        const value: GetCellValueType = {"value": v, "ts": current_ts}
+        const value: GetCellValueType = {"value": v, "ts": current_ts, "labels": null, "aggregations": null}
         obj[k] = value;
       }
     }
