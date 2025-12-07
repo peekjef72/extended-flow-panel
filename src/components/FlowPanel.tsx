@@ -209,7 +209,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   useEffect( () =>{
       if (tooltipContainerRef && tooltipContainerRef.current) {
             const containerRect = tooltipContainerRef.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 0, 0);
-            console.log('FlowPanel.useEffect(/tooltipContainerRef): container rect:', containerRect);
+            // console.log('FlowPanel.useEffect(/tooltipContainerRef): container rect:', containerRect);
       }
     }, [tooltipContainerRef.current]
   )

@@ -210,8 +210,8 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
         const drive = {dataRef: dataRef, bespokeDataRef: undefined, datapoint: bespokeDataDatapoint};
         const dataValue = getCellValue(drive, tsData, null);
         dataStore.data[dataRef] = dataValue.value;
-        dataStore.labels[dataRef] = Object.fromEntries(dataValue.labels);
-        dataStore.aggregations[dataRef] = Object.fromEntries(dataValue.aggregations);
+        dataStore.labels[dataRef] = dataValue.labels ? Object.fromEntries(dataValue.labels) : new Object;
+        dataStore.aggregations[dataRef] = dataValue.aggregations ? Object.fromEntries(dataValue.aggregations) : new Object;
         // const data = { 'value': dataValue.value, 'labels': dataValue.labels, 'aggregations': dataValue.aggregations }
         // dataStore.data[dataRef] = data;
         current_ts += dataValue.ts;
