@@ -2,17 +2,17 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { css, cx } from '@emotion/css';
 import { Button, useStyles2, useTheme2 } from '@grafana/ui';
-import { getTemplateSrv } from '@grafana/runtime';
+import { getTemplateSrv, locationService } from '@grafana/runtime';
 import { GrafanaTheme2, PanelProps, toDataFrame } from '@grafana/data';
 import { FlowOptions, DebuggingCtrs } from '../types';
 import { configInit, panelConfigFactory, PanelConfig, siteConfigFactory, SiteConfig } from 'components/Config';
-import { HighlightState, HighlighterFactory, highlighterInitialState } from 'components/Highlighter';
+import { HighlightState, HighlighterFactory, highlighterState } from 'components/Highlighter';
 import { loadSvg, loadYaml } from 'components/Loader';
 import { svgInit, svgUpdate, SvgHolder, SvgElementAttribs, SvgAttribs } from 'components/SvgUpdater';
 import { seriesExtend, seriesInterpolate , seriesTransform } from 'components/TimeSeries';
 import { TimeSliderFactory } from 'components/TimeSlider';
 import { displayColorsInner, displayDataInner, displayMappingsInner, displaySvgInner } from 'components/DebuggingEditor';
-import { colorLookup, constructUrl, flowDebug, getInstrumenter } from 'components/Utils';
+import { colorLookup, constructGrafanaVariables, constructUrl, flowDebug, getInstrumenter, subSourceDataUrlTokens } from 'components/Utils';
 import { TooltipTrigger, TooltipTriggerHandle, TooltipTriggerConfig } from "components/TooltipTrigger"
 import { addHook, sanitize } from 'dompurify';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
@@ -79,11 +79,35 @@ const getStyles = () => {
   };
 };
 
-function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, linkVariables: Map<string, string>) {
+function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, linkVariables: Map<string, string>, driveHighlighter: (selectionNew: string | undefined) => void, clickCellNameLast: React.MutableRefObject<string | undefined>) {
   return (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
     if (event.target) {
       const element = event.target as HTMLElement;
       const attribs = elementAttribs.get(element.id);
+      const clickActions = attribs?.clickActions;
+      const clickCellName = attribs?.name;
+
+      // Click toggling is supported by latching in the last driven cell name.
+      // The latch gets reset by clicks on the highlighter bar.
+      const clickOn = clickCellName !== clickCellNameLast.current;
+      clickCellNameLast.current = clickCellNameLast.current === clickCellName ? undefined : clickCellName;
+
+      // Set variables
+      if (clickActions?.grafanaVariables && attribs) {
+        // The 'off' set is optional. If not defined every click is 'on'
+        const variableSet = (clickOn ? clickActions.grafanaVariables.on : clickActions.grafanaVariables.off) || clickActions.grafanaVariables.on;
+        if (variableSet) {
+          const grafanaVariables = constructGrafanaVariables(variableSet, attribs, getTemplateSrv())
+          locationService.partial(grafanaVariables, true);
+        }
+      }
+
+      // Set highlighter
+      if (clickActions?.highlighterSelection) {
+        driveHighlighter(clickOn ? clickActions.highlighterSelection : undefined);
+      }
+
+      // Drive link
       const link = attribs?.link;
       if (link) {
         const url = constructUrl(link, attribs, linkVariables, getTemplateSrv());
@@ -181,6 +205,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   const mouseOverHandlerRef = useRef<any>(null);
   const svgDocBlankRef = useRef<Document>(new DOMParser().parseFromString('<svg/>', "text/xml"));
   const grafanaTheme = useRef<GrafanaTheme2>(useTheme2());
+  const clickCellNameLast = useRef<string | undefined>();
 
   //---------------------------------------------------------------------------
   // TooltipTrigger
@@ -258,9 +283,9 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     setSvgStr(undefined);
     setPanelConfig(undefined);
     setSiteConfig(undefined);
-    loadSvg(options.svg, setSvgStr, setVariableIdsSvg);
-    loadYaml(options.siteConfig, panelConfigError, (config) => {setSiteConfig(siteConfigFactory(config))}, setVariableIdsSite);
-    loadYaml(options.panelConfig, panelConfigError, (config) => {setPanelConfig(panelConfigFactory(config))}, setVariableIdsPanel);
+    loadSvg(subSourceDataUrlTokens(options.svg), setSvgStr, setVariableIdsSvg);
+    loadYaml(subSourceDataUrlTokens(options.siteConfig), (config) => {setSiteConfig(siteConfigFactory(config))}, setVariableIdsSite);
+    loadYaml(subSourceDataUrlTokens(options.panelConfig), (config) => {setPanelConfig(panelConfigFactory(config))}, setVariableIdsPanel);
   }, [options.svg, options.panelConfig, options.siteConfig, actDynamicUrlCtr]);
 
   //---------------------------------------------------------------------------
@@ -300,7 +325,13 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
         doc: svgDoc,
         attribs: svgAttribs,
       };
-      clickHandlerRef.current = clickHandlerFactory(svgAttribs.elementAttribs, panelConfig.linkVariables);
+      const driveHighlighter = (selection: string | undefined) => {
+        const state = highlighterState(selection, panelConfig.highlighter)
+        setHighlighterSelection(state);
+      }
+      clickHandlerRef.current = clickHandlerFactory(svgAttribs.elementAttribs, panelConfig.linkVariables, driveHighlighter, clickCellNameLast);
+
+      driveHighlighter(options.highlighterSelection);
       mouseOverHandlerRef.current = tooltipHandlerFactory(
         svgAttribs,
         setTooltipContentWrapper(),
@@ -309,7 +340,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
         setTooltipOpenRef.current,
         tooltipTriggerRef.current,
       );
-      setHighlighterSelection(highlighterInitialState(options.highlighterSelection, panelConfig.highlighter));
+      setHighlighterSelection(highlighterState(options.highlighterSelection, panelConfig.highlighter));
       setInitialized(true);
     }
   }, [initialized, svgStr, panelConfig, siteConfig, options.highlighterSelection]);
@@ -436,12 +467,16 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   // Highlighter
 
   const styles = useStyles2(getStyles);
+  const setHighlighterSelectionWrapper = (selectionNew: string | undefined) => {
+    clickCellNameLast.current = undefined;
+    setHighlighterSelection(selectionNew);
+  }
   const highlighter = HighlighterFactory({
     animControl: animationControlPosition === AnimationControlPosition.highlighter ? animationControl : null,
     styles: styles,
     enabled: highlighterEnabled,
     highlighterConfig: panelConfig?.highlighter,
-    setSelection: setHighlighterSelection,
+    setSelection: setHighlighterSelectionWrapper,
     selection: highlighterSelection,
   });
 

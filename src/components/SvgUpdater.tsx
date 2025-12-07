@@ -1,5 +1,6 @@
 import { getValueFormatterIndex, formattedValueToString, GrafanaTheme2 } from '@grafana/data';
 import { 
+  ClickActions,
   DataRefDrive,
   FlowValueMapping, HighlightFactors,
   LabelSeparator, Link,
@@ -62,6 +63,7 @@ export type SvgElementAttribs = {
   name: string;
   dataRef: string | null;
   link: Link | null;
+  clickActions: ClickActions | null;
   strokeColor: string | null;
   fillColor: string | null;
   styleColor: string | null;
@@ -179,7 +181,9 @@ function recurseElements(level: number, el: HTMLElement, cellData: SvgCell, cell
     if (cellData.cellProps.label && (innerMostDiv(el) || (el.nodeName === 'text'))) {
       el.style.whiteSpace = 'pre';
     }
-    if (cellData.cellProps.link) {
+    if (cellData.cellProps.link ||
+      cellData.cellProps.clickActions?.highlighterSelection ||
+      cellData.cellProps.clickActions?.grafanaVariables?.on) {
       el.style.cursor = 'pointer';
       el.setAttribute('cursor', 'pointer');
     }
@@ -396,13 +400,13 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
 
   cells.forEach((cell, cellIdShort) => {
     const panelConfigCell = panelConfig.cells.get(cellIdShort);
-    const link = panelConfigCell ? panelConfigCell.link : null;
     [cell.textElements, cell.fillElements].forEach((arr) => {
       arr.forEach((el) => {
         elementAttribs.set(el.id, {
           name: cellIdShort,
           dataRef: panelConfigCell?.dataRef || null,
-          link: link || null,
+          link: panelConfigCell?.link || null,
+          clickActions: panelConfigCell?.clickActions || null,
           strokeColor: el.getAttribute('stroke'),
           fillColor: el.getAttribute('fill'),
           styleColor: el.style?.color,
@@ -919,12 +923,12 @@ export function svgUpdate(
 
       // check change to sanitize only if necessary
       const previousSanitized = cellData.tooltip.tooltipContent;
-      const rawChanged = content !== previousSanitized;
+      // const rawChanged = content !== previousSanitized;
       // const tc = tooltipConfigRef?.current;
-      // console.log('svgUpdate(): for ',  cellId, 'currentId:', tc?.elementId,
-      //   'content:', content, 'prev:', previousSanitized, 'rawChanged:', rawChanged);
+      // console.log('svgUpdate(): for ',  cellId, //'currentId:', tc?.elementId,
+      //   'content:', content, 'prev:', previousSanitized, 'rawChanged:', content !== previousSanitized);
       // sanitize result once
-      if (rawChanged) {
+      if (content !== previousSanitized) {
         const sanitized = sanitize(content)
 
         // update tooltip holder and potentially the visible tooltip
@@ -944,8 +948,9 @@ export function svgUpdate(
 
           // update visible tooltip content by matching tooltipConfigRef
           const elementId = tooltipElementIdRef?.current;
-          if (elementId && cellId === elementId && tooltipContentRef.current !== sanitized) {
-            // console.log('svgUpdate: will update content for cell', tooltipConfigRef.current.elementId)
+          // console.log('svgUpdate() tooltip: cellId:', cellId, " - tooltipElementIdRef.current:", elementId, ' - tooltipContentRef.current:', tooltipContentRef.current)
+          if (elementId && cellData.cellId === elementId && tooltipContentRef.current !== sanitized) {
+            // console.log('svgUpdate: will update content for cell', cellId)
             tooltipContentRef.current = sanitized;
             setTooltipContent(content)
           }

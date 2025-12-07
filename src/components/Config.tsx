@@ -36,6 +36,14 @@ export type Link = {
   sameTab: boolean | undefined;
 };
 
+export type ClickActions = {
+  grafanaVariables: {
+    on: Object | undefined;
+    off: Object | undefined;
+  };
+  highlighterSelection: string | undefined;
+};
+
 export type Background = {
   darkThemeColor: string | undefined;
   lightThemeColor: string | undefined;
@@ -148,6 +156,7 @@ export type PanelConfigCellTooltips = {
 export type PanelConfigCell = DataRefDrive & {
   linkRef: string | undefined;
   link: Link | undefined;
+  clickActions: ClickActions;
   label: PanelConfigCellLabel | undefined;
   labelColor: PanelConfigCellColor | undefined;
   labelColorCompound: PanelConfigCellColorCompound | undefined;
@@ -220,8 +229,8 @@ export type PanelConfig = {
   animationsPresent: boolean;
   variableThresholdScalars: Map<string, VariableThresholdScalars[]>;
   gradientMode: ColorGradientMode;
-  dataRefTransform: DataRefTransform;
   datapoint: DatapointMode | undefined;
+  dataRefTransform: DataRefTransform;
   cellIdPreamble: string;
   cellIdExtender: string;
   cellLabelDecimalPoints: number | undefined;

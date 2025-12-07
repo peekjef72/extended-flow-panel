@@ -11,7 +11,8 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addTextInput({
     path: 'svg',
     name: 'SVG',
-    description: `This holds the SVG element or a url to the SVG element.`,
+    description: `This holds the SVG element or an absolute url to the SVG file.
+    If a relative url is needed it can be converted into an absolute url by adding a \${document.baseURI} preamble token to the link.`,
     defaultValue: 'https://raw.githubusercontent.com/andymchugh/andrewbmchugh-flow-panel/main/examples/' + svgName,
     settings: {
       useTextarea: true,

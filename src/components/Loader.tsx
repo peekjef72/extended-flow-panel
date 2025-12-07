@@ -43,7 +43,7 @@ export async function loadSvg(source: string, fn: (svgStr: string) => void, fnVa
 // - The actual object
 // - Serialized yaml
 // - A url to the serialized yaml
-export async function loadYaml(source: (Object | string), error: React.MutableRefObject<any | undefined>, fn: (yaml: Object) => void, fnVars: (svgStr: string) => void) {
+export async function loadYaml(source: (Object | string), fn: (yaml: Object) => void, fnVars: (svgStr: string) => void) {
   // The default maxAliasCount of 100 gets hit with more complex yaml docs.
   // We don't want to allow unlimited (-1) or even configurable as that allows people
   // to configure unreasonable dashboards. Instead we amp up the limit by 100x.
@@ -67,9 +67,8 @@ export async function loadYaml(source: (Object | string), error: React.MutableRe
       const responseYaml = YAML.parse(responseText, yamlOptions);
       fn(responseYaml);
     }
-  } catch(err: any) {
+  } catch(err) {
     flowDebug().warn('Error loading config. source =', source, ', error =', err);
-    error.current = err.message
     fn({});
   }
 }

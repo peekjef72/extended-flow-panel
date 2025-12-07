@@ -1,0 +1,181 @@
+---
+
+#------------------------------------------------------------------------------
+# YAML Aliases to simplify maintenance
+
+anchorLinks:
+  - link: &grafana-home
+      url: "https://grafana.com/"
+      params: "time"
+  - thresholds: &thresholds-slow
+      - {color: "green", level: 0}
+      - {color: "orange", level: 80}
+      - {color: "red", level: 150}
+  - thresholds: &thresholds-fast
+      - {color: "green", level: 0}
+      - {color: "orange", level: 200}
+      - {color: "red", level: 600}
+  - flowAnimation: &flowanim-slow
+      thresholdOffValue: 2
+      thresholdLwrValue: 10
+      thresholdLwrDurationSecs: 1
+      thresholdUprValue: 100
+      thresholdUprDurationSecs: 0.1
+  - flowAnimation: &flowanim-fast
+      thresholdOffValue: 10
+      thresholdLwrValue: 100
+      thresholdLwrDurationSecs: 1
+      thresholdUprValue: 600
+      thresholdUprDurationSecs: 0.1
+
+#------------------------------------------------------------------------------
+# Panel Config
+
+cellIdPreamble: "cell-"
+gradientMode: "hue"
+tagConfig:
+  condensed: false
+
+linkVariables:
+  urlPanelWebsiteBase: "https://github.com/andymchugh/andrewbmchugh-flow-panel"
+  urlPanelWebsiteSurname: "mchugh"
+  demoCellName: "https://github.com/andymchugh/andrewbmchugh-flow-panel/tree/main/${cell.name}"
+
+cells: 
+  grafana:
+    link:
+      url: "https://grafana.com/"
+      params: "time"
+  website:
+    link:
+      url: "https://github.com/andymchugh/andrewbmchugh-flow-panel"
+      params: null
+  absFlowAnimWithTime:
+    link:
+      url: "http://localhost:3000/d/${flowAnimDashboardID}/flow-animation?orgId=1"
+      params: "time"
+  absFlowAnimNoTime:
+    link:
+      url: "http://localhost:3000/d/${flowAnimDashboardID}/flow-animation?orgId=1"
+      params: null
+  relFlowAnimWithTime:
+    link:
+      url: "d/${flowAnimDashboardID}/flow-animation?orgId=1"
+      params: "time"
+  relFlowAnimNoTime:
+    link:
+      url: "/d/${flowAnimDashboardID}/flow-animation?orgId=1"
+      params: null
+  badLinkWithTime:
+    link:
+      url: "\\\\< > bad data"
+      params: "time"
+  badLinkNoTime:
+    link:
+      url: "\\\\< > bad data"
+      params: null
+  websiteSiteVariables:
+    link:
+      url: "https://github.com/andy${urlSiteWebsiteSurname}/andrewb${urlSiteWebsiteSurname}-flow-panel"
+      params: null
+  websitePanelVariables:
+    link:
+      url: "${urlPanelWebsiteBase}/tree/main/src/README.md"
+      params: null
+  relativeSiteVar:
+    link:
+      url: "?orgId=1"
+      params: null
+  badLinkSiteVar:
+    link:
+      url: "\\\\< > bad link ${animationSiteVar} variable data"
+      params: null
+  andrew:
+    dataRef: "andy"
+    link:
+      url: "https://github.com/${cell.dataRef}${urlSiteWebsiteSurname}/${cell.name}b${urlSiteWebsiteSurname}-flow-panel"
+      params: null
+  src:
+    link:
+      url: "${demoCellName}"
+      params: null
+  examples:
+    link:
+      url: "${demoCellName}"
+      params: null
+  grafanaVariable:
+    link:
+      url: "https://github.com/andymchugh/andrewbmchugh-flow-panel/tree/main/${grafanaVariable}"
+      params: "time"
+
+  #----------------------------------------------------------------------------
+  # ClickAction Cells
+  A:
+    dataRef: "test-data-small-cos"
+    tags: ["noflow"]
+    fillColor: &fill-click
+      thresholds:
+      - {color: "dark-green", level: 0}
+    clickActions:
+      grafanaVariables:
+        on:
+          grafanaVariable: "myValue-${cell.name}"
+  B:
+    dataRef: "test-data-small-cos"
+    tags: ["noflow"]
+    fillColor: *fill-click
+    clickActions:
+      highlighterSelection: "noflow"
+  C:
+    dataRef: "test-data-small-cos"
+    tags: ["outflow"]
+    fillColor: *fill-click
+    clickActions:
+      grafanaVariables:
+        on:
+          grafanaVariable: "myValue-${cell.dataRef}"
+      highlighterSelection: "outflow"
+  D:
+    dataRef: "test-data-small-cos"
+    tags: ["inflow"]
+    fillColor: *fill-click
+    clickActions:
+      grafanaVariables:
+        on:
+          grafanaVariable: "myValue"
+      highlighterSelection: "inflow"
+  E:
+    dataRef: "test-data-small-cos"
+    fillColor: *fill-click
+    clickActions:
+      grafanaVariables:
+        on:
+          grafanaVariable: "myValue"
+      highlighterSelection: "badselection"
+  F:
+    dataRef: "test-data-small-cos"
+    tags: ["inflow"]
+    fillColor: *fill-click
+    clickActions:
+      grafanaVariables:
+        on:
+          badvariable: "myValue"
+      highlighterSelection: "inflow"
+  G:
+    dataRef: "test-data-small-cos"
+    tags: ["outflow"]
+    fillColor: *fill-click
+    clickActions:
+      highlighterSelection: "inflow"
+  H:
+    dataRef: "test-data-small-cos"
+    tags: ["inflow"]
+    fillColor: *fill-click
+    clickActions:
+      grafanaVariables:
+        on:
+          grafanaVariable: "on-myValue"
+          secondVar: "on-secondVarValue"
+        off:
+          grafanaVariable: "off-myValue"
+          secondVar: "off-secondVarValue"
