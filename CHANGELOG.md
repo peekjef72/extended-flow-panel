@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.20.1
+
+- add function Number() to utils for formulas: usage 'my = utils.Number(strNumber)'; useful to convert number contained in a label to something that can be used with units.
+
+- fixed: constants parsing in bespoke definition without drive config.
+
 ## 1.20.0
 
 Click Actions

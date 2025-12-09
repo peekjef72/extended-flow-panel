@@ -100,6 +100,16 @@ export function bespokeDriveHandlerFactory(level: number, cellId: string, cellPr
     config.dataRefs?.forEach((v) => {
       state.dataRefs.add(v);
     });
+    try {
+      // Pull in the clients constants
+      for (const [k, v] of Object.entries(config.constants || {})) {
+        state.constants.set(k, v);
+      }
+    }
+    catch (err) {
+      flowDebug().warn('Error occurred creating bespoke constant for',  element, 'error =', err, 'config =', config);
+    }
+
     config.formulas?.forEach((v) => {
       try {
         state.formulas.push(parse(v as string));
@@ -173,9 +183,13 @@ function grafanaVariablesReplace(str: string) {
   return getTemplateSrv().replace(str);
 }
 
+function convertToNumber(str: string) {
+  return Number(str)
+}
 function clientExposedUtils(highlighterSelection: string) {
   return {
     log: flowDebug().info,
+    "Number": convertToNumber,
     variablesReplace: grafanaVariablesReplace,
     highlighterSelection: highlighterSelection,
     highlighterState: 'Ambient',
