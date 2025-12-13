@@ -6,6 +6,40 @@
 
 - fixed: constants parsing in bespoke definition without drive config.
 
+- added: new format for dataRef and dataRefs in bespoke:
+
+  ```yaml
+  cell_26:
+    dataRef: <dataname>
+      myref: <dataname>
+  
+    bespoke:
+      dataRefs:
+        - inRef: trafic_myrouter_if_in_26
+        - outRef: trafic_myrouter_if_out_26
+        - speedRef: speed_myrouter_if_26
+      formulas: &myformulas
+        - 'in = data[inRef]'
+        - 'out = data[outRef]'
+        - 'speed = data[speedRef]'
+        - 'trafic = max(in, out)'
+    [...]
+  cell_27:
+    bespoke:
+      dataRefs:
+        - inRef: trafic_myrouter_if_in_27
+        - outRef: trafic_myrouter_if_out_27
+        - speedRef: speed_myrouter_if_27
+      formulas: *myformulas
+  ```
+
+  that allows to use generic names in formulas directly without to set constant names for each cell.
+  
+  By default a constant named "**currentRef**" is defined in the namespace for each dataRef if no alias is specified.
+
+- removed: call to toDataFrame() function because received timeseries are already dataFrames.
+- added: **.ts** for each element in tooltip (.label .labelColor)
+
 ## 1.20.0
 
 Click Actions

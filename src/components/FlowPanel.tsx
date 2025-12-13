@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { css, cx } from '@emotion/css';
 import { Button, useStyles2, useTheme2 } from '@grafana/ui';
 import { getTemplateSrv, locationService } from '@grafana/runtime';
-import { GrafanaTheme2, PanelProps, toDataFrame } from '@grafana/data';
+import { GrafanaTheme2, PanelProps } from '@grafana/data';
 import { FlowOptions, DebuggingCtrs } from '../types';
 import { configInit, panelConfigFactory, PanelConfig, siteConfigFactory, SiteConfig } from 'components/Config';
 import { HighlightState, HighlighterFactory, highlighterState } from 'components/Highlighter';
@@ -356,8 +356,8 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   const timeMin = Number(templateSrv.replace("${__from}"));
   const timeMax = Number(templateSrv.replace("${__to}"));
 
-  const dataConverter = function(arr: any[]) { return arr.map((item: any) => toDataFrame(item)) };
-  const dataFrames = instrument('toDataFrame', dataConverter)(data.series || []);
+  // const dataConverter = function(arr: any[]) { return arr.map((item: any) => toDataFrame(item)) };
+  const dataFrames = data.series || [];
   let tsData = instrument('transform', seriesTransform)(dataFrames, timeMin, timeMax, panelConfig?.dataRefTransform);
 
   if (options.testDataEnabled) {

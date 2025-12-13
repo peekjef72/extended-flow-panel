@@ -21,7 +21,7 @@ import { getTemplateSrv } from '@grafana/runtime';
 import { attribDriverManager, bespokeDriveHandlerFactory, ScopedState, CellBespokeHandler, getBespokeData } from './bespokeDriver';
 import { sanitize } from 'dompurify';
 
-type TooltipVariableInstanceType = "label" | "labelColor" | "default";
+type TooltipVariableInstanceType = "label" | "labelColor" | "ts" | "default";
 
 export type TooltipVariableInstance = {
   varName: string;
@@ -35,6 +35,7 @@ export type TooltipVar = {
   element: PanelConfigTooltipsElement | undefined;
   value: any;
   color: any;
+  ts: any;
 }
 export type TooltipHolder = {
   tooltipContent: string;
@@ -352,6 +353,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
                   element: element,
                   value: undefined,
                   color: undefined,
+                  ts: undefined,
                 }
                 tooltip.usedVars.set(match[2], variable);
               }
@@ -364,7 +366,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
               varString: match[1],
             }
             if (match[3] !== undefined) {
-              if( ["labelColor", "label"].includes(match[3]) ) {
+              if( ["labelColor", "label", "ts"].includes(match[3]) ) {
                 instance.type = match[3] as TooltipVariableInstanceType;
               }
             }
@@ -882,6 +884,8 @@ export function svgUpdate(
               cellTooltipValueSeed = variableThresholdScaleValue(variableValues, cellData, cellTooltipsValue);
               const cellTooltipsMappedValue = cellTooltipsData?.valueMappings ? valueMapping(cellTooltipsData.valueMappings, cellTooltipsValue) : null;
               element.value = cellTooltipsMappedValue || (cellTooltipsData && (typeof cellTooltipsValue === 'number') ? formatCellValue(cellTooltipsData, cellTooltipsValue) : cellTooltipsValue);
+              const formater = getValueFormatterIndex()['dateTimeAsSystem'];
+              element.ts = formater(cellTooltipsValueInner?.ts, 0, 0, "").text;
             }
             if(element.element?.labelColor && cellTooltipValueSeed) {
               element.color = getThresholdColor(sdb, cellTooltipValueSeed, element.element.labelColor, cellBespokeData)?.color || null;          }
@@ -907,7 +911,9 @@ export function svgUpdate(
           case "labelColor":
             value = element.color ?? '';
             break;
-
+          case "ts":
+            value = element.ts ?? '';
+            break;
           default:
             value = element.value ?? '';
             if (element.color) {

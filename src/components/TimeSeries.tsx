@@ -145,8 +145,8 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
             }
             if (ts.state) {
               let src = undefined;
-              if (ts.state.calc ) {
-                src = ts.state.calc
+              if (ts.state.calcs ) {
+                src = ts.state.calcs
               }
               if (ts.state.range ) {
                 src = ts.state.range
