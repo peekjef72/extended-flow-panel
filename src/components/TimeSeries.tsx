@@ -1,4 +1,4 @@
-import { FieldType, getFieldDisplayName } from '@grafana/data';
+import { DataFrame, FieldType, getFieldDisplayName, reduceField, ReducerID } from '@grafana/data';
 import { sliderTime } from 'components/TimeSlider';
 import { DataRefTransform, DataRefTransformQuery, TestConfig } from './Config';
 
@@ -18,6 +18,16 @@ export type TimeSeriesData = {
   timeRange: number;
   ts: Map<string, TimeSeries>;
 };
+
+export type SeriesStats = {
+  min?: number;
+  max?: number;
+  mean?: number;
+  last?: number;
+  lastNotNull?: number;
+  count?: number;
+};
+
 
 export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | undefined) {
   const timeMin = tsData.timeMin;
@@ -145,13 +155,13 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
             }
             if (ts.state) {
               let src = undefined;
-              if (ts.state.calcs ) {
+              if (ts.state.calcs != undefined) {
                 src = ts.state.calcs
               }
-              if (ts.state.range ) {
+              else if (ts.state.range != undefined ) {
                 src = ts.state.range
               }
-              if( src != null ) {
+              if( src != undefined ) {
                 for ( const [key, value] of Object.entries(src)) {
                   if ( typeof value === 'number' ) {
                     aggregations.set(key,value)
@@ -223,4 +233,33 @@ export function seriesInterpolate(tsData: TimeSeriesData, timeSliderScalar: numb
     }
   });
   return tsData;
+}
+
+export function computeAndAttachSeriesStats(
+  frames: DataFrame[]
+): SeriesStats[] {
+  return frames.map(frame => {
+    const valueField = frame.fields.find(f => f.type === FieldType.number);
+    if (!valueField) {
+      return {};
+    }
+
+    const calcs = reduceField({
+      field: valueField,
+      reducers: [
+        ReducerID.lastNotNull,
+        ReducerID.min,
+        ReducerID.max,
+        ReducerID.mean,
+      ],
+    });
+
+    valueField.state = valueField.state ?? {};
+    valueField.state.calcs = {
+      ...(valueField.state.calcs ?? {}),
+      ...calcs,
+    };
+
+    return calcs as SeriesStats;
+  });
 }

@@ -2,6 +2,17 @@
 
 ## 1.20.1
 
+### Click Action Fixes (flow)
+
+------------------
+Allow setting of grafana-variable multi-values through array definition.
+
+### extended-flow
+
+------------------
+
+- added: optional get aggregations for timeseries
+
 - add function Number() to utils for formulas: usage 'my = utils.Number(strNumber)'; useful to convert number contained in a label to something that can be used with units.
 
 - fixed: constants parsing in bespoke definition without drive config.

@@ -118,6 +118,15 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
     started.`,
     defaultValue: true,
   })
+  .addBooleanSwitch({
+    path: 'seriesAggregation',
+    name: 'Compute Series Aggregations',
+    category: ['Options'],
+    description: `This enriches the grafana time series with additional aggregations that
+    can be used in dataRef or formulas via aggregation array. It adds runtime overhead so
+    only enable when required.`,
+    defaultValue: true,
+  })
   .addCustomEditor({
     category: ['Debugging'],
     id: 'debuggingCtr',

@@ -9,7 +9,7 @@ import { configInit, panelConfigFactory, PanelConfig, siteConfigFactory, SiteCon
 import { HighlightState, HighlighterFactory, highlighterState } from 'components/Highlighter';
 import { loadSvg, loadYaml } from 'components/Loader';
 import { svgInit, svgUpdate, SvgHolder, SvgElementAttribs, SvgAttribs } from 'components/SvgUpdater';
-import { seriesExtend, seriesInterpolate , seriesTransform } from 'components/TimeSeries';
+import { seriesExtend, seriesInterpolate , seriesTransform, computeAndAttachSeriesStats } from 'components/TimeSeries';
 import { TimeSliderFactory } from 'components/TimeSlider';
 import { displayColorsInner, displayDataInner, displayMappingsInner, displaySvgInner } from 'components/DebuggingEditor';
 import { colorLookup, constructGrafanaVariables, constructUrl, flowDebug, getInstrumenter, subSourceDataUrlTokens } from 'components/Utils';
@@ -358,6 +358,9 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
 
   // const dataConverter = function(arr: any[]) { return arr.map((item: any) => toDataFrame(item)) };
   const dataFrames = data.series || [];
+  if ( options.seriesAggregation ) {
+    instrument('seriesAggregation', computeAndAttachSeriesStats)(dataFrames);
+  }
   let tsData = instrument('transform', seriesTransform)(dataFrames, timeMin, timeMax, panelConfig?.dataRefTransform);
 
   if (options.testDataEnabled) {
@@ -365,6 +368,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   }
   
   instrument('seriesInterpolate', seriesInterpolate)(tsData, timeSliderScalarRef.current);
+
 
   //---------------------------------------------------------------------------
   // Update the SVG Attributes with the interpolated time-series data 
