@@ -23,4 +23,6 @@ export interface FlowOptions {
   debuggingCtr: DebuggingCtrs;
   testDataEnabled: boolean;
   seriesAggregation: boolean;
+  timeSlideShowControlEnabled: boolean;
+  timeSlideShowIntervalMs: number;
 };

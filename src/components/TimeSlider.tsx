@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { css, cx } from '@emotion/css';
 import { DataHoverClearEvent, DataHoverEvent, DataHoverPayload, EventBus, FieldType, getValueFormatterIndex, ValueFormatter } from '@grafana/data';
 import { TimeSeriesData } from 'components/TimeSeries';
@@ -17,12 +17,16 @@ export interface TimeSliderProps {
   mode: TimeSliderMode;
   eventBus: EventBus;
   windowWidth: number;
+  timeSlideShowControl: any;
+  timeSlideShowIsPlayingContentRef: React.MutableRefObject<boolean>;
+  timeSliderPlayIntervalMs: number;
 }
 
 type TimeSliderState = {
   formatter: ValueFormatter;
   panelId: string;
   range: number;
+  setTimeValue: React.Dispatch<React.SetStateAction<number>>;
 };
 
 type DataHoverPayloadFlowPanel = DataHoverPayload & {
@@ -45,6 +49,7 @@ const handleOnChange = (props: TimeSliderProps, state: TimeSliderState, event: a
   const time = sliderTime(props.tsData, sliderScalar);
   props.timeSliderScalarRef.current = sliderScalar;
   props.setLabel(state.formatter(time, 0, 0, props.timeZone).text);
+  state.setTimeValue(props.timeSliderScalarRef.current * state.range)
   return [time, sliderScalar];
 }
 
@@ -118,13 +123,18 @@ export const TimeSliderFactory = (props: TimeSliderProps) => {
   const setLabel = props.setLabel;
   const labelWidth = 150;
   const animControlWidth = props.animControl ? 35 : 0;
-  const sliderWidth = props.windowWidth - labelWidth - animControlWidth;
+  const timeSlideShowControlWidth = props.timeSlideShowControl ? 35 : 0;
+  let sliderWidth = props.windowWidth - labelWidth - animControlWidth - timeSlideShowControlWidth;
+  const initialRange = 1000;
+  const [timeValue, setTimeValue] = useState<number>(props.timeSliderScalarRef.current * initialRange);
 
   const stateRef = useRef<TimeSliderState>({
     formatter: getValueFormatterIndex()['dateTimeAsSystem'],
     panelId: 'panel' + (gPanelIdCallCount++).toString(),
-    range: 1000,
+    range: initialRange,
+    setTimeValue: setTimeValue,
   });
+  const playTimerRef = useRef<number | null>(null);
 
   // Subscribe to the eventsBus hoverEvent to synchronize timeSliders 
   useEffect(() => {
@@ -151,7 +161,53 @@ export const TimeSliderFactory = (props: TimeSliderProps) => {
     setLabel(stateRef.current.formatter(epochTime, 0, 0, props.timeZone).text);
   }, [setLabel, props.tsData, props.timeSliderScalarRef, props.timeZone]);
 
-  // Local onChange handler
+  useEffect(() => {
+    const stepMs = props.timeSliderPlayIntervalMs ?? 500;
+    // have to compute step or let set it by user 0.01 => all = 100 steps
+    const step = 0.01;
+
+    if (!props.timeSlideShowIsPlayingContentRef.current) {
+      if (playTimerRef.current !== null) {
+        window.clearInterval(playTimerRef.current);
+        playTimerRef.current = null;
+      }
+      return;
+    } else {
+      const current = props.timeSliderScalarRef.current;
+      if ( current >= 1 ) {
+        props.timeSliderScalarRef.current = 0
+      } else {
+        props.timeSliderScalarRef.current += step;
+      }
+      setTimeValue(props.timeSliderScalarRef.current * stateRef.current.range);
+      // const epochTime = sliderTime(props.tsData, props.timeSliderScalarRef.current);
+      // setLabel(stateRef.current.formatter(epochTime, 0, 0, props.timeZone).text);
+    }
+
+    playTimerRef.current = window.setInterval(() => {
+      const current = props.timeSliderScalarRef.current;
+
+      if (current >= 1) {
+        props.timeSliderScalarRef.current = 0;
+      } else {
+        props.timeSliderScalarRef.current = Math.min(current + step, 1);
+      }
+
+      setTimeValue(props.timeSliderScalarRef.current * stateRef.current.range);
+      // const epochTime = sliderTime(props.tsData, props.timeSliderScalarRef.current);
+      // setLabel(stateRef.current.formatter(epochTime, 0, 0, props.timeZone).text);
+
+    }, stepMs);
+
+    return () => {
+      if (playTimerRef.current !== null) {
+        window.clearInterval(playTimerRef.current);
+        playTimerRef.current = null;
+      }
+    };
+  }, [props.timeSlideShowIsPlayingContentRef.current, props.timeSliderPlayIntervalMs]);
+
+// Local onChange handler
   const handleOnChangeLocal = (event: any) => {
     const state = stateRef.current;
     const [time, sliderScalar] = handleOnChange(props, state, event);
@@ -168,8 +224,9 @@ export const TimeSliderFactory = (props: TimeSliderProps) => {
     }
   }
 
+  const range = stateRef.current.range;
+
   // JSX TimeSlider
-  const range = stateRef.current.range
   return (
     <div>
       <div className={cx(
@@ -187,11 +244,12 @@ export const TimeSliderFactory = (props: TimeSliderProps) => {
           style={{width: sliderWidth}}
           min="0"
           max={range}
-          value={props.timeSliderScalarRef.current * range}
+          value={timeValue}
           id="timeSlider"
           onChange={handleOnChangeLocal}
         />
         <label>{props.label}</label>
+        {props.timeSlideShowControl}
       </div>
     </div>
   );

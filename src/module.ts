@@ -123,9 +123,29 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
     name: 'Compute Series Aggregations',
     category: ['Options'],
     description: `This enriches the grafana time series with additional aggregations that
-    can be used in dataRef or formulas via aggregation array. It adds runtime overhead so
+    can be used in dataRef or formulas via aggregations array (like data[] or labels[]). It adds runtime overhead so
     only enable when required.`,
     defaultValue: true,
+  })
+  .addBooleanSwitch({
+    path: 'timeSlideShowControlEnabled',
+    name: 'Time Slide Show Control Enabled',
+    category: ['Options'],
+    description: `This defines whether the pause/play time slide show control is shown in the
+    bottom right corner of the panel. The button is only visible if time slider have also been
+    enabled.`,
+  })
+  .addSliderInput({
+    path: 'timeSlideShowIntervalMs',
+    name: 'Play interval',
+    category: ['Options'],
+    description: 'Delay between each TimeSlider step (ms)',
+    defaultValue: 1000,
+    settings: {
+      min: 500,
+      max: 10000,
+      step: 100,
+    },
   })
   .addCustomEditor({
     category: ['Debugging'],

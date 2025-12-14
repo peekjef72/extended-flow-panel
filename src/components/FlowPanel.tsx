@@ -206,6 +206,9 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   const svgDocBlankRef = useRef<Document>(new DOMParser().parseFromString('<svg/>', "text/xml"));
   const grafanaTheme = useRef<GrafanaTheme2>(useTheme2());
   const clickCellNameLast = useRef<string | undefined>();
+  // to play slider animation
+  const [timeSlideShowIsPlaying, setTimeSlideShowIsPlaying] = useState(false);
+  const timeSlideShowIsPlayingContentRef = useRef<boolean>(false);
 
   //---------------------------------------------------------------------------
   // TooltipTrigger
@@ -466,7 +469,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     icon={animationsEnabled ? "pause" : "play"}
     onClick={() => setAnimationsEnabled(!animationsEnabled)}>
   </Button>) : null;
-  
+
   //---------------------------------------------------------------------------
   // Highlighter
 
@@ -485,6 +488,19 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   });
 
   //---------------------------------------------------------------------------
+  // time Slide Show control
+
+  const timeSlideShowControl = options?.timeSlideShowControlEnabled ? (<Button
+    tooltip={timeSlideShowIsPlaying ? 'pause' : 'play'}
+    fill="text"
+    size="md"
+    icon={timeSlideShowIsPlaying ? "pause" : "play"}
+    onClick={ () => setTimeSlideShowIsPlaying(!timeSlideShowIsPlaying)}>
+  </Button>) : null;
+
+  timeSlideShowIsPlayingContentRef.current = timeSlideShowIsPlaying;
+
+  //---------------------------------------------------------------------------
   // TimeSlider
 
   const timeSlider = TimeSliderFactory({
@@ -499,6 +515,9 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     windowWidth: width,
     timeZone: timeZone,
     eventBus: eventBus,
+    timeSlideShowControl: timeSlideShowControl,
+    timeSlideShowIsPlayingContentRef: timeSlideShowIsPlayingContentRef,
+    timeSliderPlayIntervalMs: options.timeSlideShowIntervalMs,
   });
 
   //---------------------------------------------------------------------------
