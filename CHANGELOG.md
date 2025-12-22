@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.20.2
+
+### extended-flow
+
+------------------
+
+- fixed: tooltips (popover) position in panel.
+
 ## 1.20.1
 
 ### Click Action Fixes (flow)

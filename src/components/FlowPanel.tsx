@@ -121,10 +121,8 @@ function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, lin
 }
 
 function tooltipHandlerFactory(
-  svgAttribs: SvgAttribs, 
-  setTooltipContent: (
-      content: React.JSX.Element | string,
-    ) => void,
+  svgAttribs: SvgAttribs,
+  setTooltipContent: React.Dispatch<React.SetStateAction<string | React.JSX.Element>> | null, 
   setTooltipConfig: React.Dispatch<React.SetStateAction<TooltipTriggerConfig>> | null,
   tooltipElementIdRef: React.MutableRefObject<string|null>,
   setTooltipOpen: React.Dispatch<React.SetStateAction<boolean>> | null,
@@ -167,7 +165,7 @@ function tooltipHandlerFactory(
             }
             // console.log("tooltipHandlerFactory(): tooltipConfig:", tooltipConfig, " - tooltipContent:", tooltipContentRef.current)
 
-            if (cell.cellIdShort !== tooltipElementIdRef.current) {
+            if (setTooltipContent !== null && cell.cellIdShort !== tooltipElementIdRef.current) {
               setTooltipContent(cell.tooltip.tooltipContent)
             }
             tooltipTrigger?.setMousePosition(event.clientX, event.clientY);
@@ -218,29 +216,6 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     setTooltipContentRef.current = setter;
   }, [] );
   const tooltipContentRef = useRef<React.JSX.Element | string >("");
-  const tooltipContainerRef = useRef<HTMLDivElement | null>(null);
-
-  function setTooltipContentWrapper( ){
-    return function( content: React.JSX.Element | string) {
-      if( !setTooltipContentRef.current ) {
-        return;
-      }
-
-      // console.log("setTooltipContentWrapper: ici - typeof content: ", typeof content)
-      if (typeof content === "string") {
-        setTooltipContentRef.current( (<div ref={tooltipContainerRef} dangerouslySetInnerHTML={{__html: content}}/>) );
-      } else {
-        setTooltipContentRef.current( (<div ref={tooltipContainerRef}>{content}</div>) );
-      }
-    }
-  }
-  useEffect( () =>{
-      if (tooltipContainerRef && tooltipContainerRef.current) {
-            const containerRect = tooltipContainerRef.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 0, 0);
-            // console.log('FlowPanel.useEffect(/tooltipContainerRef): container rect:', containerRect);
-      }
-    }, [tooltipContainerRef.current]
-  )
   const setTooltipOpenRef = useRef<React.Dispatch<React.SetStateAction<boolean>> | null>(null);
   const registerSetterSetTooltipOpen = useCallback( (setter: React.Dispatch<React.SetStateAction<boolean>>) => {
     setTooltipOpenRef.current = setter;
@@ -314,6 +289,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   useEffect( () => {
     if (tooltipOverlayRef.current) {
       const overlayRect = tooltipOverlayRef.current?.getBoundingClientRect() ?? new DOMRect(0, 0, 0, 0);
+      // console.log('FlowPanel.useEffect(/tooltipOverlayRef): container rect:', overlayRect);
       tooltipTriggerRef.current?.setOverlayRect(overlayRect);
     }
   }, [tooltipOverlayRef.current])
@@ -337,7 +313,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
       driveHighlighter(options.highlighterSelection);
       mouseOverHandlerRef.current = tooltipHandlerFactory(
         svgAttribs,
-        setTooltipContentWrapper(),
+        setTooltipContentRef.current,
         setTooltipConfigRef.current,
         tooltipElementIdRef,
         setTooltipOpenRef.current,
@@ -398,7 +374,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
       tsData,
       highlighterSelection,
       animationsEnabled,
-      setTooltipContentWrapper(),
+      setTooltipContentRef.current,
       tooltipContentRef,
       tooltipElementIdRef,
     );
@@ -614,7 +590,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
           <TooltipTrigger
             ref={tooltipTriggerRef}
             content=""
-            config={{x:0, y:0}}
+            config={{x:0, y:0, maxWidth: width, maxHeight: height,}}
             open={false}
             registerSetterSetTooltipContent={registerSetterSetTooltipContent}
             registerSetterSetTooltipOpen={registerSetterSetTooltipOpen}

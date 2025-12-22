@@ -1,12 +1,14 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { GrafanaTheme2} from '@grafana/data';
 import { Popover, useStyles2 } from '@grafana/ui';
-import { css } from '@emotion/css';
+import { css, cx } from '@emotion/css';
 
 
 export type TooltipTriggerConfig = {
   x: number;
   y: number;
+  maxWidth?: number;
+  maxHeight?: number;
 }
 
 type TooltipTriggerInternalConfig = TooltipTriggerConfig & {
@@ -24,6 +26,7 @@ function getPosition(config: TooltipTriggerInternalConfig) {
     let left = mouseX - ( config.container.width / 2 ) ;
     
     // console.log('TooltipTrigger.getPosition(): config', config, 'left:', left, 'top:', top)
+    // console.log('TooltipTrigger.getPosition(): overlay.right', config.overlayRect.right, 'container.w/2', config.container.width / 2, 'mx', mouseX, 'left:', left, 'top:', top)
     
     if (top < config.overlayRect.top ) {
         vPos='top';
@@ -34,10 +37,21 @@ function getPosition(config: TooltipTriggerInternalConfig) {
     if ( left < config.overlayRect.left ) {
         hPos = 'right';
     }
-    else if ( mouseX + config.container.width / 2 > config.overlayRect.right ) {
+    else if ( mouseX + paddingLeft + config.container.width > config.overlayRect.right ) {
         hPos='left';
+        if (  mouseX + config.container.width / 2 < config.overlayRect.right ) {
+            hPos = 'middle';
+            // have to force popup above(bottom) or below (top) the cursor; choose below by default
+            vPos = 'top';
+            if (top < config.overlayRect.top ) {
+                vPos='top';
+            }
+            else if ( mouseY + config.container.height / 2 > config.overlayRect.bottom ) {
+                vPos= 'bottom';
+            }
+        }
     }
-
+    console.log('TooltipTrigger.getPosition(): vPos', vPos, 'hPos', hPos)
     // if ( vPos === 'top' ) {
     switch ( vPos ) {
         case 'top':
@@ -84,9 +98,10 @@ export interface TooltipTriggerProps {
     config: TooltipTriggerConfig | null;
     open: boolean | undefined;
 
-    registerSetterSetTooltipContent: (
-        setter: React.Dispatch<React.SetStateAction<React.JSX.Element | string>>
-    ) => void;
+    registerSetterSetTooltipContent: any
+    // registerSetterSetTooltipContent: (
+    //     (setter: React.JSX.Element | string) => void
+    // ) => void;
 
     registerSetterSetTooltipOpen: (
         setter: React.Dispatch<React.SetStateAction<boolean>>
@@ -130,8 +145,9 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
 
     // Expose setters to parent
     const registerSetterSetTooltipContent = props.registerSetterSetTooltipContent;
+
     useEffect( () => {
-        registerSetterSetTooltipContent( setTooltipContent );
+        registerSetterSetTooltipContent( setTooltipContentWrapper() );
     }, [registerSetterSetTooltipContent] );
 
     const registerSetterSetTooltipOpen = props.registerSetterSetTooltipOpen;
@@ -143,6 +159,18 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
     useEffect( () => {
         registerSetterSetTooltipConfig( setTooltipConfig );
     }, [registerSetterSetTooltipConfig] );
+
+
+    function setTooltipContentWrapper( ){
+        return function( content: React.JSX.Element | string) {
+            // console.log("setTooltipContentWrapper: ici - typeof content: ", typeof content)
+            if (typeof content === "string") {
+                setTooltipContent( <div ref={tooltipContainerRef} dangerouslySetInnerHTML={{__html: content}}/> );
+            } else {
+                setTooltipContent( <div ref={tooltipContainerRef}>{content}</div> );
+            }
+        }
+    }
 
     // set config and content ref
     tooltipContentRef.current =
@@ -187,6 +215,20 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
         // console.log('TooltipTrigger(/useEffect(tooltipConfig)): src tooltipConfig:', tooltipConfig, 'dst tooltipConfigRef', tooltipConfigRef.current)
     }, [tooltipConfig]);
 
+    // useEffect( () => {
+    //     if (tooltipOpen && tooltipContainerRef && tooltipContainerRef.current) {
+
+    //         // console.log('TooltipTrigger.useEffect(/tooltipOpen): setContainerDim candidate:', tooltipContainerRef.current);
+    //         const containerRect = tooltipContainerRef.current.getBoundingClientRect() ?? new DOMRect(0, 0, 0, 0);
+    //         if (tooltipConfigRef.current) {
+    //             tooltipConfigRef.current.container.width = containerRect.width;
+    //             tooltipConfigRef.current.container.height = containerRect.height;
+    //             console.log('TooltipTrigger.useEffect(/tooltipOpen): setContainerDim (w,h):', [containerRect.width, containerRect.height]);
+    //         }
+
+    //     }
+    // }, [tooltipOpen, tooltipContent]);
+
     useEffect( () => {
         if (tooltipOpen && tooltipContainerRef && tooltipContainerRef.current) {
 
@@ -195,11 +237,11 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
             if (tooltipConfigRef.current) {
                 tooltipConfigRef.current.container.width = containerRect.width;
                 tooltipConfigRef.current.container.height = containerRect.height;
-                // console.log('TooltipTrigger.useEffect(/tooltipOpen): setContainerDim (w,h):', [containerRect.width, containerRect.height]);
+//                console.log('TooltipTrigger.useEffect(/tooltipOpen): setContainerDim (w,h):', [containerRect.width, containerRect.height]);
             }
 
         }
-    }, [tooltipOpen, tooltipContent]);
+    }, [tooltipOpen, tooltipContainerRef.current]);
 
     //------
     
@@ -209,13 +251,31 @@ export const TooltipTrigger = forwardRef<TooltipTriggerHandle, TooltipTriggerPro
     if (typeof tooltipContent !== "string") {
         // console.log("build TooltipTrigger(): tooltipConfig", tooltipConfig)
         content = (
-            <div ref={tooltipContainerRef} className={styles.wrapper}>
+            <div ref={tooltipContainerRef}
+                className={cx(
+                    styles.wrapper,
+                    css`
+                    max-width: ${props.config?.maxWidth ? props.config.maxWidth + 'px' : '800px'};
+                    max-height: ${props.config?.maxHeight ? props.config.maxHeight + 'px' : '600px'};
+                    overflow: auto;
+                    `
+                    )}>
                 {tooltipContent}
             </div>
         );
     } else {
-        content = <div className={styles.wrapper}
-            dangerouslySetInnerHTML={{__html: tooltipContent}}/>
+        content = <div
+            className={cx(
+                styles.wrapper,
+                css`
+                    max-width: ${props.config?.maxWidth ? props.config.maxWidth + 'px' : '800px'};
+                    max-height: ${props.config?.maxHeight ? props.config.maxHeight + 'px' : '600px'};
+                    overflow: auto;
+                    `
+                )}
+            ref={tooltipContainerRef}
+            dangerouslySetInnerHTML={{__html: tooltipContent}}
+        />
     }
 
     return (
@@ -238,24 +298,17 @@ const getStyles = (theme: GrafanaTheme2) => {
             boxShadow: theme.shadows.z2,
             fontSize: theme.typography.bodySmall.fontSize,
             left: 0,
+            top: 0,
             maxWidth: '800px',
-            overflow: 'hidden',
+            maxHeight: '600px',
+            overflow: 'auto',
             padding: theme.spacing(1),
             position: 'fixed',
-            top: 0,
             userSelect: 'text',
             whiteSpace: 'pre',
             zIndex: theme.zIndex.tooltip,
         }),
-        tooltipsBox: css`
-            padding: 8px;
-            background: rgb(24, 27, 31);
-            border-width: 1px 1px medium;
-            border-style: solid solid none;
-            border-color: rgba(204, 204, 220, 0.12) rgba(204, 204, 220, 0.12) currentcolor;
-            border-image: none;
-            border-top-left-radius: 3px;
-        `,
+ 
     };
 };
 

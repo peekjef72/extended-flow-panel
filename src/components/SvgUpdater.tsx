@@ -697,7 +697,7 @@ export function svgUpdate(
     tsData: TimeSeriesData, 
     highlighterSelection: string | undefined, 
     animationsEnabled: boolean,
-    setTooltipContent: ( content: string ) => void,
+    setTooltipContent: React.Dispatch<React.SetStateAction<string | React.JSX.Element>> | null,
     tooltipContentRef: React.MutableRefObject<string>,
     tooltipElementIdRef: React.MutableRefObject<string>,
   ) {
@@ -958,7 +958,7 @@ export function svgUpdate(
           if (elementId && cellData.cellId === elementId && tooltipContentRef.current !== sanitized) {
             // console.log('svgUpdate: will update content for cell', cellId)
             tooltipContentRef.current = sanitized;
-            setTooltipContent(content)
+            setTooltipContent?.(content);
           }
         }
         // console.log('svgUpdate: tooltip.content', sanitized)
