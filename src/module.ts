@@ -23,7 +23,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
     id: 'panelConfig',
     path: 'panelConfig',
     name: 'Panel Config',
-    description: `YAML file containing the panel config.`,
+    description: `YAML file (or url) containing the panel config.`,
     editor: YamlEditor,
     defaultValue: 'https://raw.githubusercontent.com/andymchugh/andrewbmchugh-flow-panel/main/examples/panelConfig1.yaml',
   })
@@ -31,14 +31,14 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
     id: 'siteConfig',
     path: 'siteConfig',
     name: 'Site Config',
-    description: `YAML file containing the site config.`,
+    description: `YAML file (or url) containing the site config.`,
     defaultValue: '',
     editor: YamlEditor,
   })
   .addBooleanSwitch({
     path: 'panZoomEnabled',
     name: 'Pan / Zoom Enabled',
-    category: ['Options'],
+    category: ['Options Display'],
     description: `When enabled the scroll wheel allows you to zoom and click-drag allows
     you to pan. Double-Click to reset zoom to normal. Note the scroll wheel can be configured
     to need additional keys such as 'Alt' to separate panel zoom from dashboard scroll. Check
@@ -48,7 +48,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addBooleanSwitch({
     path: 'animationsEnabled',
     name: 'Animations Enabled',
-    category: ['Options'],
+    category: ['Options Display'],
     description: `This defines the initial state of animations controlled via yaml data. The actual
     state is dynamically settable from the play/pause button in the bottom left corner of the
     panel. The button is only visible if animations have been defined in the yaml data.`,
@@ -57,7 +57,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addBooleanSwitch({
     path: 'animationControlEnabled',
     name: 'Animation Control Enabled',
-    category: ['Options'],
+    category: ['Options Display'],
     description: `This defines whether the pause/play animation control is shown in the
     bottom left corner of the panel. The button is only visible if animations have also been
     defined in the yaml data.`,
@@ -66,7 +66,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addBooleanSwitch({
     path: 'highlighterEnabled',
     name: 'Highlighter',
-    category: ['Options'],
+    category: ['Options Display'],
     description: `When enabled a highlighting bar is added below the SVG. Widgets on the
     SVG have optional tags defined in the yaml and the highlighter allows you to bring
     a thread of information to the front.`,
@@ -75,14 +75,14 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addTextInput({
     path: 'highlighterSelection',
     name: 'Highlighter Selection',
-    category: ['Options'],
+    category: ['Options Display'],
     description: `The initial highlighter tag selection. If empty it will default to the panelConfig value.`,
     defaultValue: '',
   })
   .addBooleanSwitch({
     path: 'timeSliderEnabled',
     name: 'Time Slider',
-    category: ['Options'],
+    category: ['Time Control'],
     description: `When selected a time-slider is added to the bottom of
     the panel to support visualization of any time point in the time range.
     Even when not selected the panel can still respond to other panels time-sliders
@@ -92,7 +92,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addRadio({
     path: 'timeSliderMode',
     name: 'Time Slider Mode',
-    category: ['Options'],
+    category: ['Time Control'],
     description: `This defines how the time-slider will respond to the dashboard
     environment. 'Local' means the time-slider is isolated from other panels.
     'Time' means it will synchronize with the time value of other time-sliders or
@@ -110,9 +110,44 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
     defaultValue: 'local',
   })
   .addBooleanSwitch({
+    path: 'timeSlideShowControlEnabled',
+    name: 'Time Slide Show Control Enabled',
+    category: ["Time Control"],
+    description: `This defines whether the pause/play time slide show control is shown in the
+    bottom right corner of the panel. The button is only visible if time slider have also been
+    enabled.`,
+    showIf: (config) => config.timeSliderEnabled
+  })
+  .addSliderInput({
+    path: 'timeSlideShowIntervalMs',
+    name: 'Play interval',
+    category: ["Time Control"],
+    description: 'Delay between each TimeSlider step (ms)',
+    showIf: (config) => config.timeSlideShowControlEnabled && config.timeSliderEnabled,
+    defaultValue: 1000,
+    settings: {
+      min: 200,
+      max: 10000,
+      step: 100,
+    },
+  })
+  .addSliderInput({
+    path: 'timeSlideShowSteps',
+    name: 'Number of steps to play',
+    category: ["Time Control"],
+    description: 'number of steps to display',
+    showIf: (config) => config.timeSlideShowControlEnabled && config.timeSliderEnabled,
+    defaultValue: 100,
+    settings: {
+      min: 3,
+      max: 500,
+      step: 1,
+    },
+  })
+  .addBooleanSwitch({
     path: 'testDataEnabled',
     name: 'Test Data Generation',
-    category: ['Options'],
+    category: ['Options Data'],
     description: `This enriches the grafana time series with additional test-data series that
     are used in the demonstration SVGs. It adds runtime overhead so only enable when getting
     started.`,
@@ -121,31 +156,11 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
   .addBooleanSwitch({
     path: 'seriesAggregation',
     name: 'Compute Series Aggregations',
-    category: ['Options'],
+    category: ['Options Data'],
     description: `This enriches the grafana time series with additional aggregations that
     can be used in dataRef or formulas via aggregations array (like data[] or labels[]). It adds runtime overhead so
     only enable when required.`,
     defaultValue: true,
-  })
-  .addBooleanSwitch({
-    path: 'timeSlideShowControlEnabled',
-    name: 'Time Slide Show Control Enabled',
-    category: ['Options'],
-    description: `This defines whether the pause/play time slide show control is shown in the
-    bottom right corner of the panel. The button is only visible if time slider have also been
-    enabled.`,
-  })
-  .addSliderInput({
-    path: 'timeSlideShowIntervalMs',
-    name: 'Play interval',
-    category: ['Options'],
-    description: 'Delay between each TimeSlider step (ms)',
-    defaultValue: 1000,
-    settings: {
-      min: 500,
-      max: 10000,
-      step: 100,
-    },
   })
   .addCustomEditor({
     category: ['Debugging'],

@@ -25,4 +25,5 @@ export interface FlowOptions {
   seriesAggregation: boolean;
   timeSlideShowControlEnabled: boolean;
   timeSlideShowIntervalMs: number;
+  timeSlideShowSteps: number;
 };

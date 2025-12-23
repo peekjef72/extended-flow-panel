@@ -494,6 +494,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     timeSlideShowControl: timeSlideShowControl,
     timeSlideShowIsPlayingContentRef: timeSlideShowIsPlayingContentRef,
     timeSliderPlayIntervalMs: options.timeSlideShowIntervalMs,
+    timeSlideShowSteps: options.timeSlideShowSteps,
   });
 
   //---------------------------------------------------------------------------
@@ -544,7 +545,6 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
         disabled={!options.panZoomEnabled}
         doubleClick={{mode: "reset"}}
         wheel={{activationKeys: panelConfig?.zoomPanPinch.wheelActivationKeys || []}}
-
       >
         <TransformComponent>
           <div 

@@ -51,7 +51,7 @@ function getPosition(config: TooltipTriggerInternalConfig) {
             }
         }
     }
-    console.log('TooltipTrigger.getPosition(): vPos', vPos, 'hPos', hPos)
+    // console.log('TooltipTrigger.getPosition(): vPos', vPos, 'hPos', hPos)
     // if ( vPos === 'top' ) {
     switch ( vPos ) {
         case 'top':

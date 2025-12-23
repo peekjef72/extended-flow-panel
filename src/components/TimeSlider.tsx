@@ -20,6 +20,7 @@ export interface TimeSliderProps {
   timeSlideShowControl: any;
   timeSlideShowIsPlayingContentRef: React.MutableRefObject<boolean>;
   timeSliderPlayIntervalMs: number;
+  timeSlideShowSteps: number;
 }
 
 type TimeSliderState = {
@@ -163,8 +164,7 @@ export const TimeSliderFactory = (props: TimeSliderProps) => {
 
   useEffect(() => {
     const stepMs = props.timeSliderPlayIntervalMs ?? 500;
-    // have to compute step or let set it by user 0.01 => all = 100 steps
-    const step = 0.01;
+    const step = (1 / (props.timeSlideShowSteps+1)); // 0.01
 
     if (!props.timeSlideShowIsPlayingContentRef.current) {
       if (playTimerRef.current !== null) {
@@ -180,8 +180,6 @@ export const TimeSliderFactory = (props: TimeSliderProps) => {
         props.timeSliderScalarRef.current += step;
       }
       setTimeValue(props.timeSliderScalarRef.current * stateRef.current.range);
-      // const epochTime = sliderTime(props.tsData, props.timeSliderScalarRef.current);
-      // setLabel(stateRef.current.formatter(epochTime, 0, 0, props.timeZone).text);
     }
 
     playTimerRef.current = window.setInterval(() => {
@@ -194,9 +192,6 @@ export const TimeSliderFactory = (props: TimeSliderProps) => {
       }
 
       setTimeValue(props.timeSliderScalarRef.current * stateRef.current.range);
-      // const epochTime = sliderTime(props.tsData, props.timeSliderScalarRef.current);
-      // setLabel(stateRef.current.formatter(epochTime, 0, 0, props.timeZone).text);
-
     }, stepMs);
 
     return () => {
@@ -205,7 +200,7 @@ export const TimeSliderFactory = (props: TimeSliderProps) => {
         playTimerRef.current = null;
       }
     };
-  }, [props.timeSlideShowIsPlayingContentRef.current, props.timeSliderPlayIntervalMs]);
+  }, [props.timeSlideShowIsPlayingContentRef.current, props.timeSliderPlayIntervalMs, props.timeSlideShowSteps]);
 
 // Local onChange handler
   const handleOnChangeLocal = (event: any) => {
