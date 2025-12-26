@@ -38,12 +38,17 @@ export async function loadSvg(source: string, fn: (svgStr: string) => void, fnVa
   }
 }
 
+
 // Receives a yaml source and calls the callback with the associated yaml object.
 // The source can be:
 // - The actual object
 // - Serialized yaml
 // - A url to the serialized yaml
-export async function loadYaml(source: (Object | string), fn: (yaml: Object) => void, fnVars: (svgStr: string) => void) {
+export async function loadYaml(
+  source: (Object | string),
+  fn: (yaml: Object) => void,
+  fnVars: (svgStr: string) => void,
+) {
   // The default maxAliasCount of 100 gets hit with more complex yaml docs.
   // We don't want to allow unlimited (-1) or even configurable as that allows people
   // to configure unreasonable dashboards. Instead we amp up the limit by 100x.
@@ -72,5 +77,23 @@ export async function loadYaml(source: (Object | string), fn: (yaml: Object) => 
     fn({});
   }
 }
+
+// Pre-load yaml to check for parse errors without loading urls.
+export function preLoadYaml(
+  source: string,
+): unknown {
+
+  const yamlOptions = { maxAliasCount: 10000, merge: true };
+
+  try {
+    if (!isUrl(source)) {
+      YAML.parse(source || '', yamlOptions);
+    }
+  } catch (err) {
+    return err ;
+  }
+  return '';
+}
+//-----------------------------------------------------------------------------
 
 

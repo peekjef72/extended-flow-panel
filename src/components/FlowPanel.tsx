@@ -190,7 +190,6 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
 
   const [svgStr, setSvgStr] = useState<string | undefined>();
   const [panelConfig, setPanelConfig] = useState<PanelConfig | undefined>(undefined);
-  const panelConfigError = useRef<string | undefined>('');
   const [siteConfig, setSiteConfig] = useState<SiteConfig | undefined>(undefined);
   const [initialized, setInitialized] = useState<boolean>(false);
   const [highlighterSelection, setHighlighterSelection] = useState<string|undefined>(undefined);
@@ -256,7 +255,6 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   useEffect(() => {
     // console.log("load config")
     svgHolderRef.current = undefined;
-    panelConfigError.current = 'test error';
     setInitialized(false);
     setSvgStr(undefined);
     setPanelConfig(undefined);
