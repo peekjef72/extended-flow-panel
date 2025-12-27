@@ -163,7 +163,6 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
       step: 1,
     },
   })
-
   .addCustomEditor({
     category: ['Debugging'],
     id: 'debuggingCtr',

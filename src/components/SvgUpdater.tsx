@@ -20,6 +20,7 @@ import {
 import { getTemplateSrv } from '@grafana/runtime';
 import { attribDriverManager, bespokeDriveHandlerFactory, ScopedState, CellBespokeHandler, getBespokeData } from './bespokeDriver';
 import { sanitize } from 'dompurify';
+import { css, keyframes } from '@emotion/css';
 
 type TooltipVariableInstanceType = "label" | "labelColor" | "ts" | "default";
 
@@ -55,7 +56,8 @@ export type SvgCell = {
   text: string;
   cellProps: PanelConfigCell;
   variableThresholdScalars: Map<string, VariableThresholdScalars[]>;
-  style: HTMLElement;
+  labelOriginalClassName: string;
+  // style: HTMLElement;
   tooltip: TooltipHolder;
 
 };
@@ -291,7 +293,9 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
         fillClipDrivers: [],
         text: '',
         cellProps: cellProps,
-        style: doc.createElement("style"),
+        // LabelOriginalClassList: el.classList,
+        labelOriginalClassName: '',
+//        style: doc.createElement("style"),
         variableThresholdScalars: new Map<string, VariableThresholdScalars[]>(),
         tooltip: tooltip,
       };
@@ -309,9 +313,12 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
       for (let addition of additions) {
         el.prepend(addition);
       }
+      // if (cellProps.labelColor?.blinkDurationSecs && (cellProps.labelColor.blinkDurationSecs > 0)) {
+      //   cell.LabelOriginalClassList = el.classList
+      // }
       // insert style element for label blink animation
-      cell.style.setAttribute("id", cellId+'_style');
-      el.insertAdjacentElement('afterbegin', cell.style);
+      // cell.style.setAttribute("id", cellId+'_style');
+      // el.insertAdjacentElement('afterbegin', cell.style);
 
       // if tooltip is defined, build a map for known variables set in format attributes and defined elements list
       if (cellProps.tooltips) {
@@ -341,11 +348,11 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
                 if (element !== undefined) {
                   // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "found in elements.")
                   found = true;
-                } else {
-                  // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "not found: not in elements.")
+                // } else {
+                //   // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "not found: not in elements.")
                 }
-              } else {
-                // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "not found: no elements defined.")
+              // } else {
+              //   // console.log("sgvInit(): add tooltip for ", cellIdShort, "var ", match[2], "not found: no elements defined.")
               }
               if (found) {
                 // console.log("sgvInit(): add tooltip for ", cellIdShort, " var:", match[2])
@@ -705,15 +712,11 @@ export function svgUpdate(
   const elementAttribs = svgHolder.attribs.elementAttribs;
   const highlightFactors = svgHolder.attribs.highlightFactors;
 
-  // console.log('%c[TRACE] svgUpdate(): start', "color: orange; font-weight: bold;")
-  // console.trace()
-
   // Bespoke Attribute Drive
   const namespacedData = attribDriverManager(svgHolder.attribs.bespokeHandlers, tsData, highlighterSelection);
 
   const cells = svgHolder.attribs.cells;
   cells.forEach((cellData, cellId) => {
-    // console.log('svgUpdate: cellId:', cellId);
     const highlight = highlightState(highlighterSelection, cellData.cellProps.tags)
     const sdb: SvgDriveBase = {
       variableValues: variableValues,
@@ -723,7 +726,6 @@ export function svgUpdate(
       highlight: highlight,
     };
     const cellBespokeData = getBespokeData(cellId, cellData.cellProps, namespacedData);
-    // console.log('bespoke data', cellBespokeData)
 
     const currentValue = getCellValue(cellData.cellProps, tsData, cellBespokeData)
     const cellValue = currentValue.value;
@@ -755,42 +757,40 @@ export function svgUpdate(
     const cellFlowAnimSeed = thresholdSeed(sdb, cellFlowAnimData, cellValueSeed, cellBespokeData);
     const cellFlowAnimState = cellFlowAnimData ? getFlowAnimationState(cellFlowAnimData, animationsEnabled ? cellFlowAnimSeed : null ) : null;
 
-    if (cellData.cellProps.labelColor || cellData.cellProps.labelColorCompound) {
-      const labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ?? 0;
-      const labelBlinkColor = cellData.cellProps.labelColorCompound
-        ? getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData)
-        : getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
-  
-      if (labelBlinkDuration > 0 && labelBlinkColor !== null && labelBlinkColor.color){
-        cellData.style.innerHTML = `
-@keyframes blinking_${cellId} { 50% { color: ${ labelBlinkColor?.color || cellLabelColor?.color || '' }} }
-.blink_${cellId} { animation: blinking_${cellId} ${labelBlinkDuration}s cubic-bezier(1,-0.27,0,1.36) infinite ;}
-`
-      } else if (cellData.style.innerHTML) {
-        // cleanup if previously set but not needed now
-        cellData.style.innerHTML = '';
-      }
-    }
-
-
     // Update fill elements/text elements: cache often used values locally
     const labelValueForReplace = cellData.text + (cellLabel ?? '');
 
     if ((cellData.cellProps.labelColor || cellData.cellProps.labelColorCompound) && cellLabelColor) {
       // cache color string
       const labelColorStr = cellLabelColor?.color || '';
+      // blink class
+      const labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ?? 0;
+      const labelBlinkColor = cellData.cellProps.labelColorCompound
+        ? getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData)
+        : getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
+
+      if (cellData.labelOriginalClassName !== '') {
+        for (const el of cellData.fillElements) {
+          el.classList.remove(cellData.labelOriginalClassName);
+        }
+        cellData.labelOriginalClassName = '';
+      }
+      if (labelBlinkDuration > 0 && labelBlinkColor !== undefined && labelBlinkColor.color) {
+        const blinkClass = css`
+          animation: ${keyframes`
+            50% {
+              color: ${labelBlinkColor?.color ?? cellLabelColor?.color ?? ''};
+            }
+          `}
+          ${labelBlinkDuration}s cubic-bezier(1,-0.27,0,1.36) infinite;
+        `;
+        cellData.labelOriginalClassName = blinkClass;
+      }
       for (const el of cellData.fillElements) {
         const elAttrib = elementAttribs.get(el.id);
-        // blink class
-        const labelBlinkDuration = cellData.cellProps.labelColor?.blinkDurationSecs ?? 0;
-        const labelBlinkColor = cellData.cellProps.labelColorCompound
-          ? getThresholdBlinkColorCompound(sdb, cellValueSeed, cellData.cellProps.labelColorCompound, cellBespokeData)
-          : getThresholdBlinkColor(sdb, cellValueSeed, cellData.cellProps.labelColor, cellBespokeData);
 
-        if (labelBlinkDuration > 0 && labelBlinkColor !== null) {
-          el.classList.add(`blink_${cellId}`);
-        } else {
-          el.classList.remove(`blink_${cellId}`);
+        if (cellData.labelOriginalClassName !== '') {
+          el.classList.add(cellData.labelOriginalClassName);
         }
 
         el.style.color = labelColorStr || elAttrib?.styleColor || '';
@@ -929,10 +929,6 @@ export function svgUpdate(
 
       // check change to sanitize only if necessary
       const previousSanitized = cellData.tooltip.tooltipContent;
-      // const rawChanged = content !== previousSanitized;
-      // const tc = tooltipConfigRef?.current;
-      // console.log('svgUpdate(): for ',  cellId, //'currentId:', tc?.elementId,
-      //   'content:', content, 'prev:', previousSanitized, 'rawChanged:', content !== previousSanitized);
       // sanitize result once
       if (content !== previousSanitized) {
         const sanitized = sanitize(content)
@@ -941,27 +937,13 @@ export function svgUpdate(
         if ( previousSanitized !== sanitized ) {
           cellData.tooltip.tooltipContent = sanitized;
 
-          // if( tooltipConfigRef && tooltipConfigRef.current ) {
-          //   console.log('svgUpdate(): tooltipTriggerElementId:', tooltipConfigRef.current?.elementId)
-          // } else {
-          //   console.log('svgUpdate(): tooltipTriggerElementId:null')
-          // }
-          // if( !tooltipConfigRef || !tooltipConfigRef.current ) {
-          //   console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
-          //   return;
-          // }
-          // console.log('svgUpdate(): tooltipContentRef.current:', tooltipContentRef.current, '- content:', content)
-
           // update visible tooltip content by matching tooltipConfigRef
           const elementId = tooltipElementIdRef?.current;
-          // console.log('svgUpdate() tooltip: cellId:', cellId, " - tooltipElementIdRef.current:", elementId, ' - tooltipContentRef.current:', tooltipContentRef.current)
           if (elementId && cellData.cellId === elementId && tooltipContentRef.current !== sanitized) {
-            // console.log('svgUpdate: will update content for cell', cellId)
             tooltipContentRef.current = sanitized;
             setTooltipContent?.(content);
           }
         }
-        // console.log('svgUpdate: tooltip.content', sanitized)
       }
     }
   });

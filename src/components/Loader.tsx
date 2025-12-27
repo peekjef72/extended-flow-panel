@@ -38,7 +38,6 @@ export async function loadSvg(source: string, fn: (svgStr: string) => void, fnVa
   }
 }
 
-
 // Receives a yaml source and calls the callback with the associated yaml object.
 // The source can be:
 // - The actual object

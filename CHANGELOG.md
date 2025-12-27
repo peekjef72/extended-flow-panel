@@ -10,6 +10,7 @@
 - fixed: time slideshow rounding number of steps and rounding pb
 - added: panel and site config yaml parsing errors checks and display.
 - reordered: panel options display data time controls
+- fixed: blink labelColor part (use css)
 
 ## 1.20.1
 
