@@ -80,6 +80,24 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
     defaultValue: '',
   })
   .addBooleanSwitch({
+    path: 'testDataEnabled',
+    name: 'Test Data Generation',
+    category: ['Options Data'],
+    description: `This enriches the grafana time series with additional test-data series that
+    are used in the demonstration SVGs. It adds runtime overhead so only enable when getting
+    started.`,
+    defaultValue: true,
+  })
+  .addBooleanSwitch({
+    path: 'seriesAggregation',
+    name: 'Compute Series Aggregations',
+    category: ['Options Data'],
+    description: `This enriches the grafana time series with additional aggregations that
+    can be used in dataRef or formulas via aggregations array (like data[] or labels[]). It adds runtime overhead so
+    only enable when required.`,
+    defaultValue: true,
+  })
+  .addBooleanSwitch({
     path: 'timeSliderEnabled',
     name: 'Time Slider',
     category: ['Time Control'],
@@ -100,6 +118,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
     it synchronizes using the timeSlider position. The difference between 'Time'
     and 'Position' becomes meaningful when you have a mix of panels with different
     query time-shifts.`,
+    showIf: (config) => config.timeSliderEnabled,
     settings: {
       options: [
         { value: 'local', label: 'Local' },
@@ -144,24 +163,7 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
       step: 1,
     },
   })
-  .addBooleanSwitch({
-    path: 'testDataEnabled',
-    name: 'Test Data Generation',
-    category: ['Options Data'],
-    description: `This enriches the grafana time series with additional test-data series that
-    are used in the demonstration SVGs. It adds runtime overhead so only enable when getting
-    started.`,
-    defaultValue: true,
-  })
-  .addBooleanSwitch({
-    path: 'seriesAggregation',
-    name: 'Compute Series Aggregations',
-    category: ['Options Data'],
-    description: `This enriches the grafana time series with additional aggregations that
-    can be used in dataRef or formulas via aggregations array (like data[] or labels[]). It adds runtime overhead so
-    only enable when required.`,
-    defaultValue: true,
-  })
+
   .addCustomEditor({
     category: ['Debugging'],
     id: 'debuggingCtr',
