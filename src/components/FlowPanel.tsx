@@ -333,13 +333,16 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   const timeMin = Number(templateSrv.replace("${__from}"));
   const timeMax = Number(templateSrv.replace("${__to}"));
 
+  // Extract query interval from data.request.intervalMs
+  const queryIntervalMs = data.request?.intervalMs || 300000; // Default 5 minutes
+
   // const dataConverter = function(arr: any[]) { return arr.map((item: any) => toDataFrame(item)) };
   const dataFrames = data.series || [];
   if ( options.seriesAggregation ) {
     instrument('seriesAggregation', computeAndAttachSeriesStats)(dataFrames);
   }
-  let tsData = instrument('transform', seriesTransform)(dataFrames, timeMin, timeMax, panelConfig?.dataRefTransform);
-
+  let tsData = instrument('transform', seriesTransform)(dataFrames, timeMin, timeMax, panelConfig?.dataRefTransform, queryIntervalMs);
+  
   if (options.testDataEnabled) {
     instrument('seriesExtend', seriesExtend)(tsData, panelConfig?.test);
   }

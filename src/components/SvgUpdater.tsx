@@ -480,20 +480,49 @@ export function getCellValue(
   }
   else if (drive?.dataRef) {
     const ts = tsData.ts.get(drive.dataRef);
-    if (ts && (typeof ts.time.valuesIndex === 'number')) {
-      value = ts.values[ts.time.valuesIndex];
-      retTs = ts.time.values[ts.time.valuesIndex];
-      labels = ts.labels;
-      agg = ts.aggregations;          
-      // lastNotNull results in a walkback till a non null value is found
-      if (drive.datapoint === 'lastNotNull') {
-        for (let i = ts.time.valuesIndex; i >= 0; i--) {
-          value = ts.values[i];
-          if (typeof value === 'number') {
-            retTs = ts.time.values[i];
-            break;
+    if (ts) {
+      if (typeof ts.time.valuesIndex === 'number') {
+        // Safety check: ensure valuesIndex is within bounds of the values array
+        if (ts.time.valuesIndex >= 0 && ts.time.valuesIndex < ts.values.length) {
+          const targetTime = ts.time.values[ts.time.valuesIndex];
+          
+          // Check if the target time is within the actual data range
+          if (targetTime >= tsData.dataTimeMin - ts.time.holeThreshold! && targetTime <= tsData.dataTimeMax + ts.time.holeThreshold!) {
+            value = ts.values[ts.time.valuesIndex];
+            retTs = targetTime;
+            labels = ts.labels;
+            agg = ts.aggregations;
+              
+            // lastNotNull results in a walkback till a non null value is found
+            if (drive.datapoint === 'lastNotNull') {
+              for (let i = ts.time.valuesIndex; i >= 0; i--) {
+                value = ts.values[i];
+                if (typeof value === 'number') {
+                  retTs = ts.time.values[i];
+                  break;
+                }
+              }
+            }
+          } else {
+            // if no data at all return nothing
+            if (ts.values.length > 0) {
+              // if target time is outside data range, return null unless lastNotNull drive which returns closest value that is last one from array
+              if( targetTime > tsData.dataTimeMax && drive.datapoint === 'lastNotNull') {
+                value = ts.values[ts.values.length - 1];
+              } else {
+                value = null;
+              }
+              retTs = targetTime;
+              labels = ts.labels;
+              agg = ts.aggregations;
+            }
           }
         }
+      } else if( ts.time.inHole && ts.time.targetTime !== undefined ) {
+        value = null;
+        retTs = ts.time.targetTime;
+        labels = ts.labels;
+        agg = ts.aggregations;
       }
     }
   }
@@ -758,7 +787,7 @@ export function svgUpdate(
     const cellFlowAnimState = cellFlowAnimData ? getFlowAnimationState(cellFlowAnimData, animationsEnabled ? cellFlowAnimSeed : null ) : null;
 
     // Update fill elements/text elements: cache often used values locally
-    const labelValueForReplace = cellData.text + (cellLabel ?? '');
+    const labelValueForReplace = cellData.text + (cellLabel ?? '<undef>');
 
     if ((cellData.cellProps.labelColor || cellData.cellProps.labelColorCompound) && cellLabelColor) {
       // cache color string
@@ -872,7 +901,7 @@ export function svgUpdate(
             element.value = formater(currentValue?.ts, 0, 0, "").text;
             break;
           case "current":
-            element.value = cellLabel;
+            element.value = cellLabel ?? '&lt;undef&gt;';
             element.color = cellLabelColor?.color || null;
             break;
           default:
@@ -880,7 +909,7 @@ export function svgUpdate(
             if(element.element?.label) {
               const cellTooltipsData = element.element.label;
               const cellTooltipsValueInner = getCellValue(cellTooltipsData, tsData, cellBespokeData);
-              const cellTooltipsValue = cellTooltipsValueInner?.value !== null ? cellTooltipsValueInner?.value : cellValue;
+              const cellTooltipsValue = cellTooltipsValueInner?.value ?? cellValue ?? '&lt;undef&gt;';
               cellTooltipValueSeed = variableThresholdScaleValue(variableValues, cellData, cellTooltipsValue);
               const cellTooltipsMappedValue = cellTooltipsData?.valueMappings ? valueMapping(cellTooltipsData.valueMappings, cellTooltipsValue) : null;
               element.value = cellTooltipsMappedValue || (cellTooltipsData && (typeof cellTooltipsValue === 'number') ? formatCellValue(cellTooltipsData, cellTooltipsValue) : cellTooltipsValue);

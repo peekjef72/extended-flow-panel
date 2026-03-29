@@ -6,6 +6,11 @@ export type TimeSeries = {
   time: {
     valuesIndex?: number | null;
     values: number[];
+    closestTimeDelta?: number | null;  // Time delta from target time for hole detection
+    hasHoles?: boolean;                 // Whether this timeseries has holes (gaps larger than query interval)
+    holeThreshold?: number;             // Threshold for detecting holes (based on query interval)
+    inHole?: boolean;                  // Whether the current interpolated point is in a hole
+    targetTime?: number;                // The target time for interpolation (when in hole detected)
   }
   values: Array<number | string | null>;
   labels: Map<string, string>;
@@ -13,9 +18,12 @@ export type TimeSeries = {
 };
 
 export type TimeSeriesData = {
-  timeMin: number;
-  timeMax: number;
-  timeRange: number;
+  timeMin: number;           // Panel time range (for field of view)
+  timeMax: number;           // Panel time range (for field of view)
+  timeRange: number;         // Panel time range (for field of view)
+  dataTimeMin: number;       // Actual data time range (for validation)
+  dataTimeMax: number;       // Actual data time range (for validation)
+  queryIntervalMs: number;   // Query interval from data.request.intervalMs (for hole detection)
   ts: Map<string, TimeSeries>;
 };
 
@@ -110,10 +118,34 @@ function transformTabular(frame: any, keyColumnName: string, applyNamespace: (na
 // This transforms the data so we have name-indexable sets of time and value.
 // i.e.:
 // - series: [fields: [{name, values}]] => Map<string, TimeSeries>
-export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMax: number, dataRefTransform: DataRefTransform | undefined): TimeSeriesData {
+// Detect holes in time series data (gaps larger than expected interval)
+function detectHoles(ts: TimeSeries, queryIntervalMs: number): { hasHoles: boolean, holeThreshold: number } {
+
+  const holeThreshold = queryIntervalMs * 2 - Math.ceil(queryIntervalMs * .1)
+
+  if (!ts.time.values || ts.time.values.length < 2) {
+    return { hasHoles: false, holeThreshold: holeThreshold };
+  }
+
+  // Calculate the hole threshold (2x the query interval)
+  let hasHoles = false;
+
+  // Check for gaps larger than the threshold
+  for (let i = 1; i < ts.time.values.length; i++) {
+    const timeDiff = ts.time.values[i] - ts.time.values[i - 1];
+    if (timeDiff > holeThreshold) {
+      hasHoles = true;
+      break;
+    }
+  }
+
+  return { hasHoles, holeThreshold };
+}
+
+export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMax: number, dataRefTransform: DataRefTransform | undefined, queryIntervalMs: number): TimeSeriesData {
   const timeSeries = new Map<string, TimeSeries>();
-  let timeMin: number | undefined = undefined;
-  let timeMax: number | undefined = undefined;
+  let dataTimeMin: number | undefined = undefined;
+  let dataTimeMax: number | undefined = undefined;
 
   const drt = dataRefTransform || {namespaced: false, queries: new Map<string, DataRefTransformQuery>()};
 
@@ -138,8 +170,8 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
             tsTime = {valuesIndex: null, values: ts.values};
             if (tsTime.values.length > 0) {
               const maxInd = tsTime.values.length - 1;
-              timeMin = Math.min(timeMin ?? tsTime.values[0], tsTime.values[0]);
-              timeMax = Math.max(timeMax ?? tsTime.values[maxInd], tsTime.values[maxInd]);
+              dataTimeMin = Math.min(dataTimeMin ?? tsTime.values[0], tsTime.values[0]);
+              dataTimeMax = Math.max(dataTimeMax ?? tsTime.values[maxInd], tsTime.values[maxInd]);
             }
           }
           else {
@@ -182,14 +214,28 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
       }
     }
   });
-      
-  timeMin = Math.floor(timeMin ?? panelTimeMin ?? 0);
-  timeMax = Math.ceil(timeMax ?? panelTimeMax ?? 0);
+  dataTimeMin = Math.floor(dataTimeMin ?? panelTimeMin ?? 0);
+  dataTimeMax = Math.ceil(dataTimeMax ?? panelTimeMax ?? 0);
+
+  let timeMin = Math.floor(panelTimeMin ?? dataTimeMin ?? 0);
+  timeMin = Math.min(timeMin, dataTimeMin ?? timeMin);
+  let timeMax = Math.ceil(panelTimeMax ?? dataTimeMax ?? 0);
+  timeMax = Math.max(timeMax, dataTimeMax ?? timeMax);
+  
+  // Detect holes in each timeseries
+  timeSeries.forEach((ts) => {
+    const holeInfo = detectHoles(ts, queryIntervalMs);
+    ts.time.hasHoles = holeInfo.hasHoles;
+    ts.time.holeThreshold = holeInfo.holeThreshold;
+  });
 
   return {
-    timeMin: timeMin,
-    timeMax: timeMax,
+    timeMin: timeMin,           // Panel time range (for field of view)
+    timeMax: timeMax,           // Panel time range (for field of view)
     timeRange: timeMax - timeMin,
+    dataTimeMin: dataTimeMin,   // Actual data time range (for validation)
+    dataTimeMax: dataTimeMax,   // Actual data time range (for validation)
+    queryIntervalMs: queryIntervalMs,
     ts: timeSeries,
   };
 }
@@ -200,8 +246,9 @@ export function seriesInterpolate(tsData: TimeSeriesData, timeSliderScalar: numb
   const targetTime = sliderTime(tsData, timeSliderScalar);
 
   tsData.ts.forEach((ts) => {
-    // ts.time can be shared across series so we only have to interpolate it once.
-    if (!ts.time.valuesIndex) {
+    // Each timeseries must calculate its own valuesIndex based on its own time values
+    // to handle cases where timeseries have different lengths
+    if (ts.time.valuesIndex === null || typeof ts.time.valuesIndex === 'undefined') {
       let closestDeltaTime = null;
       let closestIndex = null;
 
@@ -210,23 +257,38 @@ export function seriesInterpolate(tsData: TimeSeriesData, timeSliderScalar: numb
       if (maxInd >= 0) {
         const minTime = ts.time.values[0];
         const maxTime = ts.time.values[maxInd];
-        let targetInd = (maxInd * (targetTime - minTime) / (maxTime - minTime)) || 0;
-        targetInd = Math.max(0, Math.min(maxInd, Math.ceil(targetInd)));
-        const nudge = ts.time.values[targetInd] < targetTime ? 1 : -1;
+        if( targetTime < minTime || targetTime > maxTime ) {
+          ts.time.valuesIndex = null;
+          ts.time.inHole = true;
+          ts.time.targetTime = targetTime;
+        } else {
+          let targetInd = (maxInd * (targetTime - minTime) / (maxTime - minTime)) || 0;
+          targetInd = Math.max(0, Math.min(maxInd, Math.ceil(targetInd)));
+          const nudge = ts.time.values[targetInd] < targetTime ? 1 : -1;
 
-        while ((targetInd >= 0) && (targetInd  <= maxInd)) {
-          const time = ts.time.values[targetInd];
-          const deltaTime = targetTime - time;
-          const deltaTimeAbs = Math.abs(deltaTime);
-          if ((closestDeltaTime == null) || (deltaTimeAbs < closestDeltaTime)) {
-            closestDeltaTime = deltaTimeAbs;
-            closestIndex = targetInd;
+          while ((targetInd >= 0) && (targetInd  <= maxInd)) {
+            // check for holes - if we have holes and we're before the current targetInd time, check if the gap from the previous time is larger than the hole threshold. If so, break out of the loop since we know we won't find a valid point before this gap.
+            if( ts.time.hasHoles && targetTime < ts.time.values[targetInd] ) {
+              if(targetInd> 0 && (ts.time.values[targetInd] - ts.time.values[targetInd-1] > ts.time.holeThreshold!)) {
+                ts.time.inHole = true;
+                ts.time.targetTime = targetTime;
+                break;
+              }
+            }
+            ts.time.inHole = false;
+            const time = ts.time.values[targetInd];
+            const deltaTime = targetTime - time;
+            const deltaTimeAbs = Math.abs(deltaTime);
+            if ((closestDeltaTime == null) || (deltaTimeAbs < closestDeltaTime)) {
+              closestDeltaTime = deltaTimeAbs;
+              closestIndex = targetInd;
+            }
+            // Break out once we start getting worse OR if we found an exact match
+            if ((deltaTimeAbs > closestDeltaTime) || (deltaTimeAbs === 0)) {
+              break;
+            }
+            targetInd += nudge;
           }
-          // Break out once we start getting worse
-          if (deltaTimeAbs > closestDeltaTime) {
-            break;
-          }
-          targetInd += nudge;
         }
       }
       ts.time.valuesIndex = closestIndex;
