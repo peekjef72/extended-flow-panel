@@ -80,7 +80,7 @@ export async function loadYaml(
 // Pre-load yaml to check for parse errors without loading urls.
 export function preLoadYaml(
   source: string,
-): unknown {
+): unknown | string {
 
   const yamlOptions = { maxAliasCount: 10000, merge: true };
 

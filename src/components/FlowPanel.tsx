@@ -8,7 +8,7 @@ import { FlowOptions, DebuggingCtrs } from '../types';
 import { configInit, panelConfigFactory, PanelConfig, siteConfigFactory, SiteConfig } from 'components/Config';
 import { HighlightState, HighlighterFactory, highlighterState } from 'components/Highlighter';
 import { loadSvg, loadYaml } from 'components/Loader';
-import { svgInit, svgUpdate, SvgHolder, SvgElementAttribs, SvgAttribs } from 'components/SvgUpdater';
+import { svgInit, svgUpdate, SvgHolder, SvgAttribs } from 'components/SvgUpdater';
 import { seriesExtend, seriesInterpolate , seriesTransform, computeAndAttachSeriesStats } from 'components/TimeSeries';
 import { TimeSliderFactory } from 'components/TimeSlider';
 import { displayColorsInner, displayDataInner, displayMappingsInner, displaySvgInner } from 'components/DebuggingEditor';
@@ -16,6 +16,7 @@ import { colorLookup, constructGrafanaVariables, constructUrl, flowDebug, getIns
 import { TooltipTrigger, TooltipTriggerHandle, TooltipTriggerConfig } from "components/TooltipTrigger"
 import { addHook, sanitize } from 'dompurify';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { CellBespokeHandler, NamespacedData } from './bespokeDriver';
 
 interface Props extends PanelProps<FlowOptions> {}
 
@@ -79,10 +80,20 @@ const getStyles = () => {
   };
 };
 
-function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, linkVariables: Map<string, string>, driveHighlighter: (selectionNew: string | undefined) => void, clickCellNameLast: React.MutableRefObject<string | undefined>) {
+function clickHandlerFactory(
+  svgHolderRef: React.MutableRefObject<SvgHolder | undefined>,
+  // svgAttribs: SvgAttribs,
+  linkVariables: Map<string, string>,
+  driveHighlighter: (selectionNew: string | undefined) => void,
+  clickCellNameLast: React.MutableRefObject<string | undefined>
+) {
   return (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
     if (event.target) {
       const element = event.target as HTMLElement;
+      if (!svgHolderRef.current)
+        return;
+      const svgAttribs = svgHolderRef.current.attribs;
+      const elementAttribs = svgAttribs.elementAttribs;
       const attribs = elementAttribs.get(element.id);
       const clickActions = attribs?.clickActions;
       const clickCellName = attribs?.name;
@@ -110,10 +121,55 @@ function clickHandlerFactory(elementAttribs: Map<string, SvgElementAttribs>, lin
       // Drive link
       const link = attribs?.link;
       if (link) {
-        const url = constructUrl(link, attribs, linkVariables, getTemplateSrv());
+        if (!attribs) {
+          return;
+        }
+        const cell  = svgAttribs.cells.get(attribs.name);
+        if (!cell) { return; }
+        // console.log("clickHandlerFactory(): cell:", cell);
+        let bespokeVariables = new Map<string, string>([]);
+        if (cell?.cellProps.bespokeDataRef) {
+          bespokeVariables.set('cell.bespokeDataRef', cell.cellProps.bespokeDataRef);
+        }
+        svgAttribs.bespokeHandlers.forEach((handler: CellBespokeHandler) => {
+          const store = handler.clientState;
+
+          // Create the store
+          if (cell.cellIdShort !== store.namespace) {
+            return;
+          }
+          // for (const [constantKey, value] of store.constants) {
+          //   bespokeVariables.set(`cell.bespoke.constant.${constantKey}`, value);
+          // }
+          if (svgHolderRef.current) {
+            const namespacedData = svgHolderRef.current.namespacedData;
+            console.log("clickHandlerFactory(): bespokeVariables before handler:", namespacedData);
+            if (namespacedData.has(store.namespace)) {
+              const data = namespacedData.get(store.namespace) as Object;
+              if (data) {
+                for ( const [key, value] of Object.entries(data) ){
+                  if ( ['aggregations', 'data', 'labels', 'utils'].includes(key) ) continue
+
+                  if (typeof value === 'object' && value !== null && value.value !== undefined) {
+                    bespokeVariables.set(`cell.bespoke.${key}`, String(value['value']));
+                  }
+                }
+              }
+            }
+          }
+        });
+        console.log("clickHandlerFactory(): bespokeVariables:", bespokeVariables);
+
+        const url = constructUrl(link, attribs, linkVariables, bespokeVariables, getTemplateSrv());
         if (url) {
+          console.log("clickHandlerFactory(): url:", url);
           const sameTarget = link.sameTab && !event.ctrlKey && !event.shiftKey;
-          window.open(url, (sameTarget ? '_self' : undefined));
+          if (!sameTarget) {
+            window.open(url, '_blank');
+          } else{
+            // locationService.partial({ 'var-host': 'server-01' }, true);
+            locationService.push(url);
+          }
         }
       }
     }
@@ -301,12 +357,13 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
       svgHolderRef.current = {
         doc: svgDoc,
         attribs: svgAttribs,
+        namespacedData: new Map<string, NamespacedData>(),
       };
       const driveHighlighter = (selection: string | undefined) => {
         const state = highlighterState(selection, panelConfig.highlighter)
         setHighlighterSelection(state);
       }
-      clickHandlerRef.current = clickHandlerFactory(svgAttribs.elementAttribs, panelConfig.linkVariables, driveHighlighter, clickCellNameLast);
+      clickHandlerRef.current = clickHandlerFactory(svgHolderRef, panelConfig.linkVariables, driveHighlighter, clickCellNameLast);
 
       driveHighlighter(options.highlighterSelection);
       mouseOverHandlerRef.current = tooltipHandlerFactory(

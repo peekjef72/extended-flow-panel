@@ -18,7 +18,7 @@ import { highlightState, HighlightState } from './Highlighter';
 import {
   CellFillLevelDriver, getClipper, isFillLevelElement } from 'components/FillLevel';
 import { getTemplateSrv } from '@grafana/runtime';
-import { attribDriverManager, bespokeDriveHandlerFactory, ScopedState, CellBespokeHandler, getBespokeData } from './bespokeDriver';
+import { attribDriverManager, bespokeDriveHandlerFactory, ScopedState, CellBespokeHandler, getBespokeData, NamespacedData } from './bespokeDriver';
 import { sanitize } from 'dompurify';
 import { css, keyframes } from '@emotion/css';
 
@@ -89,6 +89,7 @@ export type SvgAttribs = {
 export type SvgHolder = {
   doc: Document;
   attribs: SvgAttribs;
+  namespacedData: Map<string, NamespacedData>;  
 }
 
 type FlowAnimationState = {
@@ -742,7 +743,8 @@ export function svgUpdate(
   const highlightFactors = svgHolder.attribs.highlightFactors;
 
   // Bespoke Attribute Drive
-  const namespacedData = attribDriverManager(svgHolder.attribs.bespokeHandlers, tsData, highlighterSelection);
+  svgHolder.namespacedData = attribDriverManager(svgHolder.attribs.bespokeHandlers, tsData, highlighterSelection);
+  const namespacedData = svgHolder.namespacedData;
 
   const cells = svgHolder.attribs.cells;
   cells.forEach((cellData, cellId) => {

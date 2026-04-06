@@ -15,7 +15,7 @@ type Utils = {
   highlighterState: string,
 };
 
-type NamespacedData =  {
+export type NamespacedData =  {
   utils: Utils;
   data: any;
   labels: any;

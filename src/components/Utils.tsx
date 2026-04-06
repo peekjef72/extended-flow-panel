@@ -105,6 +105,7 @@ function substituteReservedTokens(str: string, attribs: SvgElementAttribs){
     ['cell.name', attribs.name],
     ['cell.dataRef', attribs.dataRef || tokenStr('cell.dataRef')],
   ]);
+  
   return substituteTokens(str, substitutions);
 }
 
@@ -121,9 +122,10 @@ export function constructGrafanaVariables(grafanaVariables: Object, attribs: Svg
   return vars;
 }
 
-export function constructUrl(link: Link, attribs: SvgElementAttribs, linkVariables: Map<string, string>, templateSrv: TemplateSrv) {
+export function constructUrl(link: Link, attribs: SvgElementAttribs, linkVariables: Map<string, string>, bespokeVariables: Map<string, string>, templateSrv: TemplateSrv) {
   // Substitute tokens
   let url = substituteTokens(link.url, linkVariables);
+  url = substituteTokens(url, bespokeVariables);
   url = substituteReservedTokens(url, attribs);
 
   // Generate url

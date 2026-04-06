@@ -66,7 +66,7 @@ export const YamlEditor = (props: any) => {
             setStatusMsg('');
         } else {
             const error = preLoadYaml(value);
-            if (error instanceof YAML.YAMLParseError ) {
+            if (error instanceof YAML.YAMLParseError) {
                 let endLine = 1;
                 let endCol = 1;
                 const startLine = error.linePos && error.linePos.length > 0 ? error.linePos[0].line : 1;
@@ -80,7 +80,28 @@ export const YamlEditor = (props: any) => {
                 }
                 errorMarkerRef.current = {startLine: startLine, startCol: startCol, endLine: endLine, endCol: endCol};
                 setStatusMsg(error.message);
-//                setErrorMarker(startLine, startCol, endLine, endCol, error.message);
+            } else if( error instanceof ReferenceError ) {
+                const editor = editorRef.current;
+                if (editor) {
+                    const searchText = error.message.match(/: ([^: ]+)$/)?.[1];
+                    if (searchText) {
+                        const model = editor.getModel();
+                        if (model) {
+                            const matches = model.findMatches(searchText, true, false, false, null, true);
+                            if (matches.length > 0) {
+                                const match = matches[0];
+                                errorMarkerRef.current = {startLine: match.range.startLineNumber, startCol: match.range.startColumn, endLine: match.range.endLineNumber, endCol: match.range.endColumn};
+                                setStatusMsg(error.message);
+                                return;
+                            }
+                        }
+                    }
+                }
+                errorMarkerRef.current = {startLine: 1, startCol: 1, endLine: 1, endCol: 1};
+                setStatusMsg(error.message);
+            } else if( error instanceof Error ) {
+                errorMarkerRef.current = {startLine: 1, startCol: 1, endLine: 1, endCol: 1};
+                setStatusMsg(error.message);
             } else {
                 errorMarkerRef.current = {startLine: 1, startCol: 1, endLine: 1, endCol: 1};
                 setStatusMsg('');
@@ -99,7 +120,9 @@ export const YamlEditor = (props: any) => {
                 size="sm"
                 onClick={ () => setErrorMarker(statusMsg)}
                 aria-label="Warning"/>
-            <label ref={errorMsgRef} className={cx(styles.errorMsg)} style={{maxWidth: `${errorMsgMaxWidth}px`}}>{statusMsg}</label>
+            <label ref={errorMsgRef} className={cx(styles.errorMsg)} style={{maxWidth: `${errorMsgMaxWidth}px`}} title={statusMsg}>
+                {statusMsg}
+            </label>
         </div> : undefined
 
     return (
@@ -118,7 +141,10 @@ export const YamlEditor = (props: any) => {
                 onBlur={onChange}
                 // onBlur={props.onChange}
                 monacoOptions={{ 
-                    automaticLayout: true
+                    automaticLayout: true,
+                    folding: true,
+                    showFoldingControls: 'mouseover',
+                    foldingStrategy: 'auto',
                 }}
             />
             </div>
