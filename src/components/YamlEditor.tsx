@@ -22,6 +22,7 @@ export const YamlEditor = (props: any) => {
         editor._domElement.style.overflow='auto';
         editor._domElement.style.resize='vertical';
         editor.updateOptions({'fontSize': 12});
+
         resizeObs = new ResizeObserver( entries => {
             const element = editor.getDomNode();
             if (element && element.parentNode && element.parentNode.parentNode && element.parentNode.parentNode.parentNode) {

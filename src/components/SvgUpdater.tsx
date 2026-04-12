@@ -314,12 +314,6 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
       for (let addition of additions) {
         el.prepend(addition);
       }
-      // if (cellProps.labelColor?.blinkDurationSecs && (cellProps.labelColor.blinkDurationSecs > 0)) {
-      //   cell.LabelOriginalClassList = el.classList
-      // }
-      // insert style element for label blink animation
-      // cell.style.setAttribute("id", cellId+'_style');
-      // el.insertAdjacentElement('afterbegin', cell.style);
 
       // if tooltip is defined, build a map for known variables set in format attributes and defined elements list
       if (cellProps.tooltips) {
@@ -327,7 +321,9 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
           cellProps.tooltips.format = `<span style="display: block; text-align: center;">$ts</span><hr><span>value: $current</span>`;
         }
         let usedInstances= new Map<string, TooltipVariableInstance>();
-        for (const match of cellProps.tooltips.format.matchAll(/\$({?([a-zA-Z_]\w*)(?:\.([a-zA-Z_]\w*))?}?)/g)) {
+        const regex = /\$({?([a-zA-Z_]\w*)(?:\.([a-zA-Z_]\w*))?}?)/g;
+        let match;
+        while ((match = regex.exec(cellProps.tooltips.format)) !== null) {
           // analyze var format.
           // match[1] is the pattern that we will to substitute during render.
           // match[2] is the variable name
@@ -486,9 +482,10 @@ export function getCellValue(
         // Safety check: ensure valuesIndex is within bounds of the values array
         if (ts.time.valuesIndex >= 0 && ts.time.valuesIndex < ts.values.length) {
           const targetTime = ts.time.values[ts.time.valuesIndex];
+          const step = ts.step ?? tsData.queryIntervalMs;
           
           // Check if the target time is within the actual data range
-          if (targetTime >= tsData.dataTimeMin - ts.time.holeThreshold! && targetTime <= tsData.dataTimeMax + ts.time.holeThreshold!) {
+          if (targetTime >= tsData.dataTimeMin - step && targetTime <= tsData.dataTimeMax + step) {
             value = ts.values[ts.time.valuesIndex];
             retTs = targetTime;
             labels = ts.labels;
@@ -737,13 +734,14 @@ export function svgUpdate(
     setTooltipContent: React.Dispatch<React.SetStateAction<string | React.JSX.Element>> | null,
     tooltipContentRef: React.MutableRefObject<string>,
     tooltipElementIdRef: React.MutableRefObject<string>,
+    noValue: string | null,
   ) {
   const variableValues = svgHolder.attribs.variableValues;
   const elementAttribs = svgHolder.attribs.elementAttribs;
   const highlightFactors = svgHolder.attribs.highlightFactors;
 
   // Bespoke Attribute Drive
-  svgHolder.namespacedData = attribDriverManager(svgHolder.attribs.bespokeHandlers, tsData, highlighterSelection);
+  svgHolder.namespacedData = attribDriverManager(svgHolder.attribs.bespokeHandlers, tsData, highlighterSelection, noValue);
   const namespacedData = svgHolder.namespacedData;
 
   const cells = svgHolder.attribs.cells;
@@ -759,7 +757,8 @@ export function svgUpdate(
     const cellBespokeData = getBespokeData(cellId, cellData.cellProps, namespacedData);
 
     const currentValue = getCellValue(cellData.cellProps, tsData, cellBespokeData)
-    const cellValue = currentValue.value;
+    // Replace null value with noValue if defined
+    const cellValue = (currentValue.value === null && noValue !== null) ? noValue : currentValue.value;
     const cellValueSeed = variableThresholdScaleValue(variableValues, cellData, cellValue);
 
     const cellLabelData = cellData.cellProps.label;

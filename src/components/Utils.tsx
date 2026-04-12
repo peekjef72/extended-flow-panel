@@ -2,7 +2,7 @@ import { GrafanaTheme2, colorManipulator } from '@grafana/data';
 import { SvgAttribs, SvgCell, SvgElementAttribs } from 'components/SvgUpdater'
 import { Background, ColorGradientMode, HighlightFactors, Link, PanelConfigCellColor, ThresholdNumber, ThresholdPattern, VariableThresholdScalars } from 'components/Config';
 import { HighlightState } from './Highlighter';
-import { TemplateSrv } from '@grafana/runtime';
+import { locationService, TemplateSrv } from '@grafana/runtime';
 
 
 export type CellIdMaker = () => string;
@@ -124,7 +124,14 @@ export function constructGrafanaVariables(grafanaVariables: Object, attribs: Svg
 
 export function constructUrl(link: Link, attribs: SvgElementAttribs, linkVariables: Map<string, string>, bespokeVariables: Map<string, string>, templateSrv: TemplateSrv) {
   // Substitute tokens
-  let url = substituteTokens(link.url, linkVariables);
+  let url;
+  if (link.url === undefined) {
+    const urlObj = locationService.getLocation();
+    url = urlObj.pathname + urlObj.search + urlObj.hash;
+  } else { 
+    url = link.url.trim();
+  }
+  url = substituteTokens(url, linkVariables);
   url = substituteTokens(url, bespokeVariables);
   url = substituteReservedTokens(url, attribs);
 
@@ -133,7 +140,25 @@ export function constructUrl(link: Link, attribs: SvgElementAttribs, linkVariabl
 
   // Append window args
   if (url.length) {
-    if (link.params === 'time') {
+    const raw_params = link.params;
+
+    if( typeof(raw_params) === 'object') {
+      let updated = false
+      if( typeof(raw_params) === 'object') {
+        for (const [k, v] of Object.entries(raw_params)) {
+          let varRec: Record<string, string> = {};
+          const value = v as string;
+          const key = `var-${k}`;
+          varRec[key] = value;
+          locationService.partial(varRec, true);
+          updated
+        }
+        if(updated) {
+          url = locationService.getLocation()
+        }
+      }
+    }
+    else if (typeof(link.params) === 'string' && link.params === 'time') {
       const urlParams = new URLSearchParams(window.location.search);
       const from = urlParams.get('from');
       const to = urlParams.get('to');

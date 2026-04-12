@@ -3,7 +3,6 @@ import { VariableInterpolation, getTemplateSrv } from "@grafana/runtime";
 export type DatapointMode = 'last' | 'lastNotNull';
 export type ColorGradientMode = 'none' | 'hue';
 export type LabelSeparator = 'cr' | 'colon' | 'space' | 'replace';
-export type LinkUrlParams = 'none' | 'time' | 'all';
 export type FillDirection = 'bottomToTop' | 'topToBottom' | 'leftToRight' | 'rightToLeft';
 export type CompoundFunction = 'min' | 'max';
 export type ColorDrives = 'labelColor' | 'strokeColor' | 'fillColor';
@@ -32,8 +31,9 @@ export type ThresholdPattern = {
 
 export type Link = {
   url: string;
-  params: LinkUrlParams;
+  params: string | Object | undefined;
   sameTab: boolean | undefined;
+  sameDashboard: boolean | undefined;
 };
 
 export type ClickActions = {

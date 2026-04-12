@@ -15,6 +15,7 @@ export type TimeSeries = {
   values: Array<number | string | null>;
   labels: Map<string, string>;
   aggregations: Map<string, number>;
+  step?: number;                        // Time interval in milliseconds (defaults to queryIntervalMs)
 };
 
 export type TimeSeriesData = {
@@ -65,6 +66,7 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
       values: dataValues,
       labels: labels,
       aggregations: new Map(),
+      step: intervalTime,
     };
   }
 
@@ -81,13 +83,16 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
 
   dataSets.forEach((ds) => {
     if (!tsData.ts.get(ds.name)) {
-      tsData.ts.set(ds.name, create(ds.datapoints, ds.scalar, ds.fn, ds.asString, ds.labels));
+      const ts = create(ds.datapoints, ds.scalar, ds.fn, ds.asString, ds.labels);
+      tsData.ts.set(ds.name, ts);
+      tsData.dataTimeMin = Math.min(tsData.dataTimeMin, ts.time.values[0]);
+      tsData.dataTimeMax = Math.max(tsData.dataTimeMax, ts.time.values[ts.time.values.length - 1]); 
     }
   });
   if (testConfig?.testDataNoTime) {
     const name = 'test-data-no-time';
     if (!tsData.ts.get(name)) {
-      tsData.ts.set(name, {values: [123], time: {values: [0], valuesIndex: null}, labels: new Map(), aggregations: new Map()});
+      tsData.ts.set(name, {values: [123], time: {values: [0], valuesIndex: null}, labels: new Map(), aggregations: new Map(), step: 10});
     }
   }
 }
@@ -119,8 +124,8 @@ function transformTabular(frame: any, keyColumnName: string, applyNamespace: (na
 // i.e.:
 // - series: [fields: [{name, values}]] => Map<string, TimeSeries>
 // Detect holes in time series data (gaps larger than expected interval)
-function detectHoles(ts: TimeSeries, queryIntervalMs: number): { hasHoles: boolean, holeThreshold: number } {
-
+function detectHoles(ts: TimeSeries): { hasHoles: boolean, holeThreshold: number } {
+  const queryIntervalMs = ts.step ?? 10;
   const holeThreshold = queryIntervalMs * 2 - Math.ceil(queryIntervalMs * .1)
 
   if (!ts.time.values || ts.time.values.length < 2) {
@@ -202,7 +207,7 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
               }
             }
 
-            tsNamed[name] = {values: ts.values, time: null, labels: labels, aggregations: aggregations};
+            tsNamed[name] = {values: ts.values, time: null, labels: labels, aggregations: aggregations, step: queryIntervalMs};
           }
         });
       }
@@ -222,9 +227,9 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
   let timeMax = Math.ceil(panelTimeMax ?? dataTimeMax ?? 0);
   timeMax = Math.max(timeMax, dataTimeMax ?? timeMax);
   
-  // Detect holes in each timeseries
+  // Detect holes in each timeseries and set step
   timeSeries.forEach((ts) => {
-    const holeInfo = detectHoles(ts, queryIntervalMs);
+    const holeInfo = detectHoles(ts);
     ts.time.hasHoles = holeInfo.hasHoles;
     ts.time.holeThreshold = holeInfo.holeThreshold;
   });
@@ -257,7 +262,8 @@ export function seriesInterpolate(tsData: TimeSeriesData, timeSliderScalar: numb
       if (maxInd >= 0) {
         const minTime = ts.time.values[0];
         const maxTime = ts.time.values[maxInd];
-        if( targetTime < minTime || targetTime > maxTime ) {
+        const step = ts.step ?? tsData.queryIntervalMs;
+        if( targetTime < minTime - step || targetTime > maxTime + step ) {
           ts.time.valuesIndex = null;
           ts.time.inHole = true;
           ts.time.targetTime = targetTime;
@@ -267,7 +273,8 @@ export function seriesInterpolate(tsData: TimeSeriesData, timeSliderScalar: numb
           const nudge = ts.time.values[targetInd] < targetTime ? 1 : -1;
 
           while ((targetInd >= 0) && (targetInd  <= maxInd)) {
-            // check for holes - if we have holes and we're before the current targetInd time, check if the gap from the previous time is larger than the hole threshold. If so, break out of the loop since we know we won't find a valid point before this gap.
+            // check for holes - if we have holes and we're before the current targetInd time, check if the gap from the previous time 
+            // is larger than the hole threshold. If so, break out of the loop since we know we won't find a valid point before this gap.
             if( ts.time.hasHoles && targetTime < ts.time.values[targetInd] ) {
               if(targetInd> 0 && (ts.time.values[targetInd] - ts.time.values[targetInd-1] > ts.time.holeThreshold!)) {
                 ts.time.inHole = true;

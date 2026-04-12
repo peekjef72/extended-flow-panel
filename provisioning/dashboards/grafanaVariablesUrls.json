@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 5,
+  "id": 2,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -28,7 +28,7 @@
         "uid": "grafana"
       },
       "gridPos": {
-        "h": 5,
+        "h": 7,
         "w": 24,
         "x": 0,
         "y": 0
@@ -40,10 +40,10 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "# URL Variables\n\nThis dashboard demonstrates grafanas variables in the\nSVG and yaml config.\n\nVariable *example* drives the SVG and panelConfig to\neach of the examples.\n\nVariable *site* flips from a genuine siteConfig to and\nnon-existent site config to check it correctly re-initializes\nafter a failed fetch.",
+        "content": "# URL Variables\n\nThis dashboard demonstrates grafanas variables in the\nSVG and yaml config.\n\nVariable *example* drives the SVG and panelConfig to\neach of the examples.\n\nVariable *site* flips from a genuine siteConfig to and\nnon-existent site config to check it correctly re-initializes\nafter a failed fetch.\n\n## example: ${example}\n## site: ${site}",
         "mode": "markdown"
       },
-      "pluginVersion": "10.0.0",
+      "pluginVersion": "11.0.0",
       "type": "text"
     },
     {
@@ -55,10 +55,11 @@
         "h": 10,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 7
       },
       "id": 7,
       "options": {
+        "animationControlEnabled": true,
         "animationsEnabled": true,
         "debuggingCtr": {
           "colorsCtr": 0,
@@ -68,20 +69,24 @@
           "timingsCtr": 0
         },
         "highlighterEnabled": true,
+        "highlighterSelection": "",
         "panZoomEnabled": true,
-        "panelConfig": "https://raw.githubusercontent.com/andymchugh/andrewbmchugh-flow-panel/main/examples/panelConfig${example}.yaml",
+        "panelConfig": "---\n\n# This panelConfig is intended for use with Svg1. It sets all the widgets to drive from the\n# same time series with the same thresholds and no gradient to make it easier to understand.\n#\n# To work, the grafana variable has to impact a query, which is impossible to do with a\n# test data drive. But we can work around that by adding the variable to the panel title.\n# To explore this feature:\n# - Add a grafana text variable 'site'\n# - Add a grafana text variable 'environment'\n# - Change your panel title to 'Example Flow Panel - ${site} - ${environment}'\n#\n# With that in place:\n# - Set site='Cicely'. See the threshold values (impacting color) on 'Inbox Depth' half\n# - Set environment='prod'. See the threshold values (impacting color) on 'Inbox Depth' half\n# - Set both and now the Inbox thresholds are a quarter\nvariableThresholdScalars:\n  site:\n    - {variableValuePattern: \".*Cicely.*\", thresholdScalar: 0.5, cellIdPatternScope: [\".*box.*\"]}\n  environment:\n    - {variableValuePattern: \"prod\", thresholdScalar: 0.5, cellIdPatternScope: [\".*box.*\"]}\n\n#------------------------------------------------------------------------------\n# YAML Aliases to simplify maintenance\n\nanchorLinks:\n  - link: &grafana-home\n      url: \"https://grafana.com/\"\n      params: \"time\"\n  - thresholds: &thresholds\n    - {color: \"semi-dark-green\", level: 0}\n    - {color: \"orange\", level: 400}\n    - {color: \"red\", level: 800}\n\n#------------------------------------------------------------------------------\n# Panel Config\n\ngradientMode: \"none\"\ncellIdPreamble: \"cell-\"\ncells: \n  drawio:\n    link:\n      sameDashboard: true\n      params:\n        example: 2\n        site: siteConfigBad\n#      url: \"https://app.diagrams.net/?p=svgdata\"\n  docs:\n    link:\n      url: \"https://github.com/andymchugh/andrewbmchugh-flow-panel/blob/main/README.md\"\n  inbox_depth:\n    dataRef: \"test-data-large-cos\"\n    label:\n      separator: \"cr\"\n      units: \"none\"\n      decimalPoints: 0\n    labelColor:\n      thresholds: *thresholds\n    link: *grafana-home\n  db_transactions:\n    dataRef: \"test-data-large-cos\"\n    label:\n      separator: \"cr\"\n      units: \"ops\"\n      decimalPoints: 0\n    fillColor:\n      thresholds: *thresholds\n    link: *grafana-home\n  start_rate:\n    dataRef: \"test-data-large-cos\"\n    label:\n      separator: \"colon\"\n      units: \"pps\"\n      decimalPoints: 0\n    labelColor:\n      thresholds: *thresholds\n    link: *grafana-home\n  active_workers:\n    dataRef: \"test-data-large-cos\"\n    label:\n      separator: \"cr\"\n      units: \"none\"\n      decimalPoints: 0\n    labelColor:\n      thresholds: *thresholds\n    link: *grafana-home\n",
+        "seriesAggregation": true,
         "siteConfig": "https://raw.githubusercontent.com/andymchugh/andrewbmchugh-flow-panel/main/examples/${site}.yaml",
         "svg": "https://raw.githubusercontent.com/andymchugh/andrewbmchugh-flow-panel/main/examples/darkThemeSvg${example}.svg",
         "testDataEnabled": true,
-        "timeSliderEnabled": true
+        "timeSlideShowIntervalMs": 1000,
+        "timeSlideShowSteps": 100,
+        "timeSliderEnabled": true,
+        "timeSliderMode": "local"
       },
       "title": "SVG & YAML URL Variables",
-      "type": "andrewbmchugh-flow-panel"
+      "type": "extended-flow-panel"
     }
   ],
   "refresh": "",
-  "schemaVersion": 38,
-  "style": "dark",
+  "schemaVersion": 39,
   "tags": [],
   "templating": {
     "list": [
@@ -124,7 +129,7 @@
       },
       {
         "current": {
-          "selected": false,
+          "selected": true,
           "text": "siteConfig",
           "value": "siteConfig"
         },
@@ -152,12 +157,14 @@
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-30m",
     "to": "now"
   },
+  "timeRangeUpdatedDuringEditOrView": false,
   "timepicker": {},
   "timezone": "",
   "title": "Grafana Variables - URLs",
-  "version": 1,
+  "uid": "ff7vqt149h2ioe",
+  "version": 5,
   "weekStart": ""
 }

@@ -25,4 +25,5 @@ export interface FlowOptions {
   timeSlideShowControlEnabled: boolean;
   timeSlideShowIntervalMs: number;
   timeSlideShowSteps: number;
+  noValue: string | null;
 };

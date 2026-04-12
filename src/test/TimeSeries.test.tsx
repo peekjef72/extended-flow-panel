@@ -16,6 +16,9 @@ test('interpolate', () => {
         timeMin: 1000,
         timeMax: 3000,
         timeRange: 2000,
+        dataTimeMin: 1000,
+        dataTimeMax: 3000,
+        queryIntervalMs: 10,
         ts: new Map<string, TimeSeries>(),
     };
 
@@ -24,11 +27,13 @@ test('interpolate', () => {
     const ts: TimeSeries = {
         time: {values: timeVals},
         values: Array(1000).fill(0),
+        labels: new Map(),
+        aggregations: new Map(),
     };
 
     tsd.ts.set('data1', ts);
 
-    checkTimeIndex(tsd, ts, -0.1, 0);
+    checkTimeIndex(tsd, ts, -0.1, null);
     checkTimeIndex(tsd, ts, 0, 0);
     checkTimeIndex(tsd, ts, 1, 9);
     checkTimeIndex(tsd, ts, 1.1, 9);
@@ -41,6 +46,9 @@ test('interpolate_1_datapoint', () => {
       timeMin: 1000,
       timeMax: 3000,
       timeRange: 2000,
+      dataTimeMin: 1000,
+      dataTimeMax: 3000,
+      queryIntervalMs: 10,
       ts: new Map<string, TimeSeries>(),
   };
 
@@ -49,11 +57,13 @@ test('interpolate_1_datapoint', () => {
   const ts: TimeSeries = {
       time: {values: timeVals},
       values: Array(1).fill(25),
+      labels: new Map(),
+      aggregations: new Map(),
   };
 
   tsd.ts.set('data1', ts);
 
-  checkTimeIndex(tsd, ts, -0.1, 0);
+  checkTimeIndex(tsd, ts, -0.1, null);
   checkTimeIndex(tsd, ts, 0, 0);
   checkTimeIndex(tsd, ts, 1, 0);
   checkTimeIndex(tsd, ts, 1.1, 0);
@@ -66,6 +76,9 @@ test('interpolate_0_datapoint', () => {
       timeMin: 1000,
       timeMax: 3000,
       timeRange: 2000,
+      dataTimeMin: 1000,
+      dataTimeMax: 3000,
+      queryIntervalMs: 10,
       ts: new Map<string, TimeSeries>(),
   };
 
@@ -74,6 +87,8 @@ test('interpolate_0_datapoint', () => {
   const ts: TimeSeries = {
       time: {values: timeVals},
       values: [],
+      labels: new Map(),
+      aggregations: new Map(),
   };
 
   tsd.ts.set('data1', ts);

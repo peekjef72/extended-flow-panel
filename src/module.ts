@@ -97,6 +97,16 @@ export const plugin = new PanelPlugin<FlowOptions>(FlowPanel).setPanelOptions((b
     only enable when required.`,
     defaultValue: true,
   })
+  .addTextInput({
+    path: 'noValue',
+    name: 'No Value',
+    category: ['Options Data'],
+    description: `Value to display when no data is available. Leave empty for null.`,
+    defaultValue: undefined,
+    settings: {
+      placeholder: '-',
+    },
+  })
   .addBooleanSwitch({
     path: 'timeSliderEnabled',
     name: 'Time Slider',

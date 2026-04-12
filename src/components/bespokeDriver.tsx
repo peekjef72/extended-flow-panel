@@ -221,7 +221,7 @@ function clientExposedUtils(highlighterSelection: string) {
   }
 }
 
-export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSeriesData, highlighterSelection: string | undefined) {
+export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSeriesData, highlighterSelection: string | undefined, noValue: string | null) {
   const namespacedData  = new Map<string, NamespacedData>();
   let current_ts = 0;
   let count_ts = 0 ;
@@ -248,7 +248,8 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
       if (typeof dataStore.data[dataRef] === 'undefined') {
         const drive = {dataRef: dataRef, bespokeDataRef: undefined, datapoint: bespokeDataDatapoint};
         const dataValue = getCellValue(drive, tsData, null);
-        dataStore.data[dataRef] = dataValue.value;
+        // Replace null value with noValue if defined
+        dataStore.data[dataRef] = (dataValue.value === null && noValue !== null) ? noValue : dataValue.value;
         dataStore.labels[dataRef] = dataValue.labels ? Object.fromEntries(dataValue.labels) : new Object;
         dataStore.aggregations[dataRef] = dataValue.aggregations ? Object.fromEntries(dataValue.aggregations) : new Object;
         // const data = { 'value': dataValue.value, 'labels': dataValue.labels, 'aggregations': dataValue.aggregations }
@@ -290,15 +291,18 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
     // Update the cell specific utils terms
     dataStore.utils.highlighterState = HighlightState[highlight];
 
-    try {
-      handler.attribSetters.forEach((obj) => {
+    handler.attribSetters.forEach((obj) => {
+      try {
         const attribValue = obj.attribFormula.evaluate(dataStore);
         handler.element?.setAttribute(obj.attribName, String(attribValue));
+      }
+      catch (err) {
+        flowDebug().warn('Error occurred calculating bespoke attribute for', 
+          handler.element, 'formula =', 
+          obj.attribFormula.toString(), 
+          'error =', err);
+      }
       });
-    }
-    catch (err) {
-      flowDebug().warn('Error occurred calculating bespoke attribute for', handler.element, 'error =', err);
-    }
   });
 
   // set the bespoke values in attended format (GetCellValueType)

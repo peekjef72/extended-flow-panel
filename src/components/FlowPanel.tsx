@@ -159,16 +159,33 @@ function clickHandlerFactory(
           }
         });
         console.log("clickHandlerFactory(): bespokeVariables:", bespokeVariables);
+        let sameTarget = !event.ctrlKey && !event.shiftKey;
 
-        const url = constructUrl(link, attribs, linkVariables, bespokeVariables, getTemplateSrv());
-        if (url) {
-          console.log("clickHandlerFactory(): url:", url);
-          const sameTarget = link.sameTab && !event.ctrlKey && !event.shiftKey;
-          if (!sameTarget) {
-            window.open(url, '_blank');
-          } else{
-            // locationService.partial({ 'var-host': 'server-01' }, true);
-            locationService.push(url);
+        if (link.sameDashboard && sameTarget) {
+          const raw_params = link.params;
+          let updated = false
+          if( typeof(raw_params) === 'object') {
+            for (const [k, v] of Object.entries(raw_params)) {
+              let varRec: Record<string, string> = {};
+              const value = v as string;
+              const key = `var-${k}`;
+              varRec[key] = value;
+              locationService.partial(varRec, true);
+              updated = true;
+            }
+            if(updated) {
+              locationService.reload();
+            }
+          }
+        } else {
+          const url = constructUrl(link, attribs, linkVariables, bespokeVariables, getTemplateSrv());
+          if (url) {
+            console.log("clickHandlerFactory(): url:", url);
+            if (link.sameTab && sameTarget) {
+              window.open(url, '_self');
+            } else {
+              window.open(url, '_blank');
+            }
           }
         }
       }
@@ -435,6 +452,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
       setTooltipContentRef.current,
       tooltipContentRef,
       tooltipElementIdRef,
+      options.noValue,
     );
   }
   const svgElement = (svgHolder ? svgHolder.doc : svgDocBlankRef.current).childNodes[0] as HTMLElement;

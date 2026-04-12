@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.20.3
+
+### extended-flow
+
+------------------
+
+- added: panelConfig and siteConfig errors' notifications just above panel, with button to jump on error line.
+- added: error msgs in console with formula name for bespoke formula in error and not only the error itself.
+- fixed/added: timeseries interpolation : now detect series with "holes" and use user's defined method to determinate rendered value.
+- added: url target destination: can now set same_dashboard to true, to only update dashboard's variables and not set a new location.
+
 ## 1.20.2
 
 ### extended-flow
