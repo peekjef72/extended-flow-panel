@@ -1,0 +1,117 @@
+---
+
+#------------------------------------------------------------------------------
+# YAML Aliases to simplify maintenance
+
+anchorLinks:
+  - link: &grafana-home
+      url: "https://grafana.com/"
+      params: "time"
+  - threshold_three_status: &threshold_three_status
+        - {color: "green", level: 0}
+        - color: "orange"
+          level: 500
+          blinkColor: "yellow"
+        - color: "red"
+          level: 800
+          blinkColor: "white"
+
+#------------------------------------------------------------------------------
+# Panel Config    
+# gradientMode: hue
+cellIdPreamble: "cell-"
+cells:
+  box1:
+    # bespoke:
+    #   dataRefs:
+    #     - sinRef:  "test-data-small-sin"
+    #     - cosRef: "test-data-large-cos"
+    #   formulas:
+    #     # - 'curCos = data["test-data-large-cos"]'
+    #     - 'curCos = data[cosRef]'
+    #     - 'curSin = data["test-data-large-sin"]'
+    #     - 'labelSin = labels[sinRef].label1'
+    #     - 'strNum= "42"'
+    #     - "num = utils.Number(strNum)"
+    dataRef: test-data-cos-hole-middle
+    #bespokeDataRef: curCos
+    label:
+      separator: "cr"
+      units: "none"
+      decimalPoints: 0
+    labelColor:
+      gradientMode: "normal"
+      thresholds: *threshold_three_status
+      blinkDurationSecs: 1
+    # tooltips:
+    #   format: |-
+    #     <center>$labelSin</center><br>
+    #     <span style="background-color: $current.labelColor;">value: $current.label</span><br><span>value: $sin</span><br><span>ts: $sin.ts</span>
+    #   elements:
+    #     sin:
+    #       label:
+    #         bespokeDataRef: curSin
+    #         units: "none"
+    #         decimalPoints: 0
+    #       labelColor:
+    #         gradientMode: "normal"
+    #         thresholds: *threshold_three_status
+    #         blinkDurationSecs: 1
+    #     labelSin:
+    #       label:
+    #         bespokeDataRef: num
+    #         units: "none"
+    # fillColor:
+    #   gradientMode: "normal"
+    #   thresholds: *threshold_three_status
+    #   blinkDurationSecs: 1.5
+
+    # link: *grafana-home
+    # strokeColor:
+    #   thresholds: *threshold_three_status
+    #   blinkDurationSecs: 0.8
+
+  # box3:
+  #   dataRef: "test-data-large-sin"
+  #   fillColor:
+  #     gradientMode: "normal"
+  #     thresholds: *threshold_three_status
+  #     blinkDurationSecs: 1
+
+  # box-5:
+  #   bespoke:
+  #     dataRefs:
+  #       - mainRef: test-data-large-cos
+  #     formulas:
+  #       - main = data[mainRef]
+  #   strokeColor:
+  #     bespokeDataRef: main
+  #     thresholds: *threshold_three_status
+  #     blinkDurationSecs: 0.8
+  #   fillColor:
+  #     bespokeDataRef: main
+  #     gradientMode: "normal"
+  #     thresholds: *threshold_three_status
+  #   tooltips:
+  #     format: |-
+  #       <center>$ts</center><br>
+  #       <span style="background-color: $main.labelColor;">value: $main.label</span>
+  #     elements:
+  #       main:
+  #         label:
+  #           bespokeDataRef: main
+  #           units: none
+  #           decimalPoints: 0
+  #         labelColor:
+  #           bespokeDataRef: main
+  #           # gradientMode: normal
+  #           thresholds: *threshold_three_status
+  #           blinkDurationSecs: 1
+
+  # link_box1_box3:
+  #   dataRef: "test-data-large-sin"
+  #   strokeColor:
+  #     thresholds: *threshold_three_status
+  #     blinkDurationSecs: 1
+  #   tooltips:
+  #     format: default

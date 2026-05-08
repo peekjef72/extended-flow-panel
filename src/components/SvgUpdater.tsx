@@ -739,6 +739,7 @@ export function svgUpdate(
   const variableValues = svgHolder.attribs.variableValues;
   const elementAttribs = svgHolder.attribs.elementAttribs;
   const highlightFactors = svgHolder.attribs.highlightFactors;
+  const localNoValue = noValue !== null ? (isNaN(Number(noValue)) ? noValue : Number(noValue)) : null;
 
   // Bespoke Attribute Drive
   svgHolder.namespacedData = attribDriverManager(svgHolder.attribs.bespokeHandlers, tsData, highlighterSelection, noValue);
@@ -758,7 +759,7 @@ export function svgUpdate(
 
     const currentValue = getCellValue(cellData.cellProps, tsData, cellBespokeData)
     // Replace null value with noValue if defined
-    const cellValue = (currentValue.value === null && noValue !== null) ? noValue : currentValue.value;
+    const cellValue = (currentValue.value === null && localNoValue !== null) ? localNoValue : currentValue.value;
     const cellValueSeed = variableThresholdScaleValue(variableValues, cellData, cellValue);
 
     const cellLabelData = cellData.cellProps.label;
@@ -788,7 +789,7 @@ export function svgUpdate(
     const cellFlowAnimState = cellFlowAnimData ? getFlowAnimationState(cellFlowAnimData, animationsEnabled ? cellFlowAnimSeed : null ) : null;
 
     // Update fill elements/text elements: cache often used values locally
-    const labelValueForReplace = cellData.text + (cellLabel ?? '<undef>');
+    const labelValueForReplace = cellData.text + (cellLabel ?? '<noValue>');
 
     if ((cellData.cellProps.labelColor || cellData.cellProps.labelColorCompound) && cellLabelColor) {
       // cache color string
@@ -899,10 +900,45 @@ export function svgUpdate(
         switch (varKey) {
           case "ts":
             const formater = getValueFormatterIndex()['dateTimeAsSystem'];
-            element.value = formater(currentValue?.ts, 0, 0, "").text;
+            let ts: any = null;
+
+            // check if a dataRef for ts is defined, if not check a dataRef for label, labelColor, strokeColor, fillColor and fillLevel in this order and use its ts if exist, else return undefined
+            if (currentValue.ts !== null && currentValue.ts !== undefined) {
+              ts = currentValue
+            } else if(cellLabelValueInner !== null && currentValueInner.ts !== null && currentValueInner.ts !== undefined) {
+              ts = currentValueInner.ts;
+              currentValue.value =  cellLabelValueInner.value;
+            } else if(cellData.cellProps.labelColor) {
+              const labelColorValue = getCellValue(cellData.cellProps.labelColor, tsData, cellBespokeData);
+              if (labelColorValue.ts !== null && labelColorValue.ts !== undefined) {
+                ts = labelColorValue.ts;
+                currentValue.value =  labelColorValue.value;
+              }
+            } else if(cellData.cellProps.strokeColor) {
+              const strokeColorValue = getCellValue(cellData.cellProps.strokeColor, tsData, cellBespokeData);
+              if (strokeColorValue.ts !== null && strokeColorValue.ts !== undefined) {
+                ts = strokeColorValue.ts;
+                currentValue.value =  strokeColorValue.value;
+              }
+            } else if(cellData.cellProps.fillColor) {
+              const fillColorValue = getCellValue(cellData.cellProps.fillColor, tsData, cellBespokeData);
+              if (fillColorValue.ts !== null && fillColorValue.ts !== undefined) {
+                ts = fillColorValue.ts;
+                currentValue.value =  fillColorValue.value;
+              }
+            } else if(cellData.cellProps.fillLevel) {
+              const fillLevelValue = getCellValue(cellData.cellProps.fillLevel, tsData, cellBespokeData);
+              if (fillLevelValue.ts !== null && fillLevelValue.ts !== undefined) {
+                ts = fillLevelValue.ts;
+                currentValue.value =  fillLevelValue.value;
+              }
+            }
+            if (ts !== null) {
+              element.value = formater(ts, 0, 0, "").text;
+            }
             break;
           case "current":
-            element.value = cellLabel ?? '&lt;undef&gt;';
+            element.value = cellLabel ?? '&lt;noValue&gt;';
             element.color = cellLabelColor?.color || null;
             break;
           default:
@@ -910,14 +946,14 @@ export function svgUpdate(
             if(element.element?.label) {
               const cellTooltipsData = element.element.label;
               const cellTooltipsValueInner = getCellValue(cellTooltipsData, tsData, cellBespokeData);
-              const cellTooltipsValue = cellTooltipsValueInner?.value ?? cellValue ?? '&lt;undef&gt;';
+              const cellTooltipsValue = cellTooltipsValueInner?.value ?? localNoValue ?? '&lt;noValue&gt;';
               cellTooltipValueSeed = variableThresholdScaleValue(variableValues, cellData, cellTooltipsValue);
               const cellTooltipsMappedValue = cellTooltipsData?.valueMappings ? valueMapping(cellTooltipsData.valueMappings, cellTooltipsValue) : null;
               element.value = cellTooltipsMappedValue || (cellTooltipsData && (typeof cellTooltipsValue === 'number') ? formatCellValue(cellTooltipsData, cellTooltipsValue) : cellTooltipsValue);
               const formater = getValueFormatterIndex()['dateTimeAsSystem'];
               element.ts = formater(cellTooltipsValueInner?.ts, 0, 0, "").text;
             }
-            if(element.element?.labelColor && cellTooltipValueSeed) {
+            if(element.element?.labelColor && cellTooltipValueSeed != null) {
               element.color = getThresholdColor(sdb, cellTooltipValueSeed, element.element.labelColor, cellBespokeData)?.color || null;          }
             break;
         }

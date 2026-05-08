@@ -482,6 +482,10 @@ function panelConfigDereference(siteConfig: SiteConfig, panelConfig: PanelConfig
             }
           }
         }
+        colorBlend(element, 'labelColor', element.labelColorCompound);
+        colorBlend(element, 'strokeColor', element.strokeColorCompound);
+        colorBlend(element, 'fillColor', element.fillColorCompound);
+
         // console.log("panelConfigDereference(): init tooltip elements for cell name:", name, "element:", element)
         elements.set(name, element)
       }

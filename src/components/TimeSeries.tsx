@@ -44,12 +44,17 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
   const dataSparse = testConfig?.testDataSparse;
   const dataExtendedZero = testConfig?.testDataExtendedZero;
   const baseOffset = typeof testConfig?.testDataBaseOffset === 'number' ? testConfig.testDataBaseOffset : 1;
-  const create = function(datapoints: number, scalar: number, fn: (inp: number) => number, asString: boolean, labels: Map<string,string>| null) {
+  const create = function(datapoints: number, scalar: number, fn: (inp: number) => number, asString: boolean, labels: Map<string,string>| null, hole?: number) {
     const intervalTime = Math.ceil((timeMax - timeMin) / datapoints);
     const intervalValue = 2 * Math.PI / datapoints;
     let timeValues = [];
     let dataValues = [];
     for (let i = 0; i <  datapoints; i++) {
+      if (hole !== undefined) {
+        if ( ( hole < 0 && i < -hole) || (hole == 0 && (i +10 > datapoints/2 && i -10 < datapoints/2))|| (hole > 0 && i > datapoints - hole)) {
+          continue;
+        }
+      } 
       timeValues.push(timeMin + (i * intervalTime));
 
       const dv = scalar * (baseOffset + fn(i * intervalValue));
@@ -62,7 +67,7 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
     }
 
     return {
-      time: {values: timeValues},
+      time: {hasHoles: false, holeThreshold: 0, values: timeValues},
       values: dataValues,
       labels: labels,
       aggregations: new Map(),
@@ -75,6 +80,9 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
     {name: 'test-data-large-sin', datapoints: 50, scalar: 500, fn: Math.sin, asString: false, labels: null},
     {name: 'test-data-small-cos', datapoints: 60, scalar: 100, fn: Math.cos, asString: false, labels: null},
     {name: 'test-data-large-cos', datapoints: 88, scalar: 500, fn: Math.cos, asString: false, labels: null},
+    {name: 'test-data-cos-hole-before', datapoints: 50, scalar: 200, fn: Math.cos, asString: false, labels: null, hole: -20},
+    {name: 'test-data-cos-hole-after', datapoints: 50, scalar: 200, fn: Math.cos, asString: false, labels: null, hole: 20},
+    {name: 'test-data-cos-hole-middle', datapoints: 60, scalar: 200, fn: Math.cos, asString: false, labels: null, hole: 0},
   ];
 
   if (testConfig?.testDataStringData) {
@@ -83,10 +91,15 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
 
   dataSets.forEach((ds) => {
     if (!tsData.ts.get(ds.name)) {
-      const ts = create(ds.datapoints, ds.scalar, ds.fn, ds.asString, ds.labels);
+      const ts = create(ds.datapoints, ds.scalar, ds.fn, ds.asString, ds.labels, ds.hole);
+      // Detect holes in each timeseries and set step
+      const holeInfo = detectHoles(ts);
+      // console.log(`seriesExtend(): TimeSeries ${ts} has holes: ${holeInfo.hasHoles} with threshold: ${holeInfo.holeThreshold}`);
+      ts.time.hasHoles = holeInfo.hasHoles;
+      ts.time.holeThreshold = holeInfo.holeThreshold;
       tsData.ts.set(ds.name, ts);
       tsData.dataTimeMin = Math.min(tsData.dataTimeMin, ts.time.values[0]);
-      tsData.dataTimeMax = Math.max(tsData.dataTimeMax, ts.time.values[ts.time.values.length - 1]); 
+      tsData.dataTimeMax = Math.max(tsData.dataTimeMax, ts.time.values[ts.time.values.length - 1]);
     }
   });
   if (testConfig?.testDataNoTime) {
@@ -120,9 +133,6 @@ function transformTabular(frame: any, keyColumnName: string, applyNamespace: (na
   }
 }
 
-// This transforms the data so we have name-indexable sets of time and value.
-// i.e.:
-// - series: [fields: [{name, values}]] => Map<string, TimeSeries>
 // Detect holes in time series data (gaps larger than expected interval)
 function detectHoles(ts: TimeSeries): { hasHoles: boolean, holeThreshold: number } {
   const queryIntervalMs = ts.step ?? 10;
@@ -147,6 +157,9 @@ function detectHoles(ts: TimeSeries): { hasHoles: boolean, holeThreshold: number
   return { hasHoles, holeThreshold };
 }
 
+// This transforms the data so we have name-indexable sets of time and value.
+// i.e.:
+// - series: [fields: [{name, values}]] => Map<string, TimeSeries>
 export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMax: number, dataRefTransform: DataRefTransform | undefined, queryIntervalMs: number): TimeSeriesData {
   const timeSeries = new Map<string, TimeSeries>();
   let dataTimeMin: number | undefined = undefined;
@@ -219,6 +232,7 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
       }
     }
   });
+
   dataTimeMin = Math.floor(dataTimeMin ?? panelTimeMin ?? 0);
   dataTimeMax = Math.ceil(dataTimeMax ?? panelTimeMax ?? 0);
 
@@ -230,6 +244,7 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
   // Detect holes in each timeseries and set step
   timeSeries.forEach((ts) => {
     const holeInfo = detectHoles(ts);
+    // console.log(`seriesTransform(): TimeSeries ${ts} has holes: ${holeInfo.hasHoles} with threshold: ${holeInfo.holeThreshold}`);
     ts.time.hasHoles = holeInfo.hasHoles;
     ts.time.holeThreshold = holeInfo.holeThreshold;
   });
@@ -275,8 +290,13 @@ export function seriesInterpolate(tsData: TimeSeriesData, timeSliderScalar: numb
           while ((targetInd >= 0) && (targetInd  <= maxInd)) {
             // check for holes - if we have holes and we're before the current targetInd time, check if the gap from the previous time 
             // is larger than the hole threshold. If so, break out of the loop since we know we won't find a valid point before this gap.
-            if( ts.time.hasHoles && targetTime < ts.time.values[targetInd] ) {
-              if(targetInd> 0 && (ts.time.values[targetInd] - ts.time.values[targetInd-1] > ts.time.holeThreshold!)) {
+            if( ts.time.hasHoles && (targetInd  < maxInd)) {
+              if((ts.time.values[targetInd]+step < targetTime) && (closestDeltaTime === null || (targetTime - ts.time.values[targetInd]) < closestDeltaTime)) {
+                targetInd ++;
+                continue;
+              }
+              // have to find the next index with time greater than targetTime
+              if(ts.time.values[targetInd] - ts.time.values[targetInd-1] > ts.time.holeThreshold!) {
                 ts.time.inHole = true;
                 ts.time.targetTime = targetTime;
                 break;
@@ -298,7 +318,12 @@ export function seriesInterpolate(tsData: TimeSeriesData, timeSliderScalar: numb
           }
         }
       }
-      ts.time.valuesIndex = closestIndex;
+      if (ts.time.inHole) {
+        ts.time.valuesIndex = null;
+      }
+      else {
+        ts.time.valuesIndex = closestIndex;
+      }
     }
   });
   return tsData;
