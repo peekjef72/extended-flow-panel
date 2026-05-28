@@ -84,6 +84,7 @@ export type SvgAttribs = {
   variableValues: Map<string, string>;
   highlightFactors: HighlightFactors;
   bespokeHandlers: CellBespokeHandler[];
+  noValue: number | string | undefined;
 };
 
 export type SvgHolder = {
@@ -446,6 +447,7 @@ export function svgInit(doc: Document, grafanaTheme: GrafanaTheme2, panelConfig:
     variableValues: variableValues,
     highlightFactors: panelConfig.highlighter.factors,
     bespokeHandlers: bespokeHandlers,
+    noValue: panelConfig.noValue,
   };
 
   // Initialize the color cache and setup the background
@@ -662,10 +664,12 @@ type SvgDriveBase = {
 function thresholdSeed(sdb: SvgDriveBase,
   paramData: PanelConfigCellColor | PanelConfigCellFillLevel | PanelConfigCellFlowAnimation | undefined,
   defaultSeed: number | string | null,
-  bespokeData: any) {
+  bespokeData: any,
+) {
   if (paramData?.dataRef || paramData?.bespokeDataRef) {
     const cellValue = getCellValue(paramData, sdb.tsData, bespokeData)?.value;
-    return variableThresholdScaleValue(sdb.variableValues, sdb.cellData, cellValue);
+    const valueSeed = (cellValue === null && (paramData?.noValue !== null && paramData?.noValue !== undefined)) ? paramData?.noValue : cellValue;
+    return variableThresholdScaleValue(sdb.variableValues, sdb.cellData, valueSeed);
   }
   else {
     return paramData ? defaultSeed : null;
@@ -675,7 +679,8 @@ function thresholdSeed(sdb: SvgDriveBase,
 function getThresholdColor(sdb: SvgDriveBase,
   cellValueSeed: string | number | null,
   configCellColor: PanelConfigCellColor | undefined,
-  bespokeData: any) {
+  bespokeData: any,
+) {
   const colorSeed = thresholdSeed(sdb, configCellColor, cellValueSeed, bespokeData);
   const thresholdColor = configCellColor && (colorSeed !== null) ? getColor(configCellColor, colorSeed, sdb.highlight, sdb.highlightFactors) : null;
   return thresholdColor;
@@ -684,7 +689,8 @@ function getThresholdColor(sdb: SvgDriveBase,
 function getThresholdBlinkColor(sdb: SvgDriveBase,
   cellValueSeed: string | number | null,
   configCellColor: PanelConfigCellColor | undefined,
-  bespokeData: any) {
+  bespokeData: any,
+) {
   const colorSeed = thresholdSeed(sdb, configCellColor, cellValueSeed, bespokeData);
   const thresholdColor = configCellColor && (colorSeed !== null) ? getBlinkColor(configCellColor, colorSeed, sdb.highlight, sdb.highlightFactors) : null;
   return thresholdColor;
@@ -693,7 +699,8 @@ function getThresholdBlinkColor(sdb: SvgDriveBase,
 function getThresholdColorCompound(sdb: SvgDriveBase,
   cellValueSeed: string | number | null,
   configCellColorCompound: PanelConfigCellColorCompound,
-  bespokeData: any) {
+  bespokeData: any,
+) {
   const chooseSecond = configCellColorCompound.function === 'min' ?
     (first: number, second: number) => second <= first:
     (first: number, second: number) => second >= first; // default is 'max'
@@ -711,7 +718,8 @@ function getThresholdColorCompound(sdb: SvgDriveBase,
 function getThresholdBlinkColorCompound(sdb: SvgDriveBase,
   cellValueSeed: string | number | null,
   configCellColorCompound: PanelConfigCellColorCompound,
-  bespokeData: any) {
+  bespokeData: any,
+) {
   const chooseSecond = configCellColorCompound.function === 'min' ?
     (first: number, second: number) => second <= first:
     (first: number, second: number) => second >= first; // default is 'max'
@@ -727,22 +735,24 @@ function getThresholdBlinkColorCompound(sdb: SvgDriveBase,
 }
 
 export function svgUpdate(
-    svgHolder: SvgHolder, 
+    svgHolderRef: React.MutableRefObject<SvgHolder | undefined>,
     tsData: TimeSeriesData, 
     highlighterSelection: string | undefined, 
     animationsEnabled: boolean,
     setTooltipContent: React.Dispatch<React.SetStateAction<string | React.JSX.Element>> | null,
     tooltipContentRef: React.MutableRefObject<string>,
     tooltipElementIdRef: React.MutableRefObject<string>,
-    noValue: string | null,
   ) {
+  if (!svgHolderRef.current)
+      return;
+  const svgHolder: SvgHolder = svgHolderRef.current;
   const variableValues = svgHolder.attribs.variableValues;
   const elementAttribs = svgHolder.attribs.elementAttribs;
   const highlightFactors = svgHolder.attribs.highlightFactors;
-  const localNoValue = noValue !== null ? (isNaN(Number(noValue)) ? noValue : Number(noValue)) : null;
+  const localNoValue = svgHolder.attribs.noValue !== null ? (isNaN(Number(svgHolder.attribs.noValue)) ? svgHolder.attribs.noValue : Number(svgHolder.attribs.noValue)) : null;
 
   // Bespoke Attribute Drive
-  svgHolder.namespacedData = attribDriverManager(svgHolder.attribs.bespokeHandlers, tsData, highlighterSelection, noValue);
+  svgHolder.namespacedData = attribDriverManager(svgHolder.attribs.bespokeHandlers, tsData, highlighterSelection, localNoValue);
   const namespacedData = svgHolder.namespacedData;
 
   const cells = svgHolder.attribs.cells;
@@ -759,14 +769,23 @@ export function svgUpdate(
 
     const currentValue = getCellValue(cellData.cellProps, tsData, cellBespokeData)
     // Replace null value with noValue if defined
-    const cellValue = (currentValue.value === null && localNoValue !== null) ? localNoValue : currentValue.value;
+    const cellValue = (currentValue.value === null && (cellData.cellProps.noValue !== null && cellData.cellProps.noValue !== undefined)) ? cellData.cellProps.noValue : (currentValue.value === null && localNoValue !== null) ? localNoValue : currentValue.value;
+
     const cellValueSeed = variableThresholdScaleValue(variableValues, cellData, cellValue);
 
     const cellLabelData = cellData.cellProps.label;
     const currentValueInner = getCellValue(cellLabelData, tsData, cellBespokeData);
     const cellLabelValueInner = currentValueInner.value;
-    const cellLabelValue = cellLabelValueInner !== null ? cellLabelValueInner : cellValue;
+    // 1. Store the fallback value to avoid repeating optional chaining (?.)
+    const fallbackValue = cellLabelData?.noValue;
+
+    // 2. Apply your conditional logic rules
+    const cellLabelValue = cellLabelValueInner !== null
+      ? cellLabelValueInner
+      : (fallbackValue !== null && fallbackValue !== undefined ? fallbackValue : cellValue);
+    // 3. Apply mapping if any
     const cellLabelMappedValue = cellLabelData?.valueMappings ? valueMapping(cellLabelData.valueMappings, cellLabelValue) : null;
+    // 4. Apply units formatting
     const cellLabel = cellLabelMappedValue || (cellLabelData && (typeof cellLabelValue === 'number') ? formatCellValue(cellLabelData, cellLabelValue) : cellLabelValue);
 
     const cellStrokeColor = cellData.cellProps.strokeColorCompound
@@ -904,7 +923,7 @@ export function svgUpdate(
 
             // check if a dataRef for ts is defined, if not check a dataRef for label, labelColor, strokeColor, fillColor and fillLevel in this order and use its ts if exist, else return undefined
             if (currentValue.ts !== null && currentValue.ts !== undefined) {
-              ts = currentValue
+              ts = currentValue.ts;
             } else if(cellLabelValueInner !== null && currentValueInner.ts !== null && currentValueInner.ts !== undefined) {
               ts = currentValueInner.ts;
               currentValue.value =  cellLabelValueInner.value;

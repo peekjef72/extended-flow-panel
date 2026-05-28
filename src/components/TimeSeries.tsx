@@ -38,7 +38,7 @@ export type SeriesStats = {
 };
 
 
-export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | undefined) {
+export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | undefined, queryIntervalMs: number) {
   const timeMin = tsData.timeMin;
   const timeMax = tsData.timeMax;
   const dataSparse = testConfig?.testDataSparse;
@@ -74,19 +74,34 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
       step: intervalTime,
     };
   }
-
-  let dataSets = [
+  type TestDataSet = {
+    name: string;
+    datapoints: number;
+    scalar: number;
+    fn: (inp: number) => number;
+    asString: boolean;
+    labels: Map<string, string> | null;
+    hole?: number;  // Optional: negative = hole before, positive = hole after, 0 = hole in middle
+  };
+  let dataSets: TestDataSet[] = [
     {name: 'test-data-small-sin', datapoints: 75, scalar: 100, fn: Math.sin, asString: false, labels: new Map<string,string>([['label1', 'value1'], ['label2_num', '2'],]) },
     {name: 'test-data-large-sin', datapoints: 50, scalar: 500, fn: Math.sin, asString: false, labels: null},
     {name: 'test-data-small-cos', datapoints: 60, scalar: 100, fn: Math.cos, asString: false, labels: null},
     {name: 'test-data-large-cos', datapoints: 88, scalar: 500, fn: Math.cos, asString: false, labels: null},
-    {name: 'test-data-cos-hole-before', datapoints: 50, scalar: 200, fn: Math.cos, asString: false, labels: null, hole: -20},
-    {name: 'test-data-cos-hole-after', datapoints: 50, scalar: 200, fn: Math.cos, asString: false, labels: null, hole: 20},
-    {name: 'test-data-cos-hole-middle', datapoints: 60, scalar: 200, fn: Math.cos, asString: false, labels: null, hole: 0},
   ];
+
+  if (testConfig?.testDataHoleData) {
+    dataSets.push({name: 'test-data-cos-hole-before', datapoints: 50, scalar: 200, fn: Math.cos, asString: false, labels: null, hole: -20});
+    dataSets.push({name: 'test-data-cos-hole-after', datapoints: 50, scalar: 200, fn: Math.cos, asString: false, labels: null, hole: 20});
+    dataSets.push({name: 'test-data-cos-hole-middle', datapoints: 60, scalar: 200, fn: Math.cos, asString: false, labels: null, hole: 0});
+  }
 
   if (testConfig?.testDataStringData) {
     dataSets.push({name: 'test-data-string', datapoints: 65, scalar: 500, fn: Math.cos, asString: true, labels: null});
+  }
+
+  if (testConfig?.testDataInstantData) {
+    dataSets.push({name: 'test-data-instant', datapoints: 1, scalar: 500, fn: Math.cos, asString: false, labels: null});
   }
 
   dataSets.forEach((ds) => {
@@ -105,7 +120,7 @@ export function seriesExtend(tsData: TimeSeriesData, testConfig: TestConfig | un
   if (testConfig?.testDataNoTime) {
     const name = 'test-data-no-time';
     if (!tsData.ts.get(name)) {
-      tsData.ts.set(name, {values: [123], time: {values: [0], valuesIndex: null}, labels: new Map(), aggregations: new Map(), step: 10});
+      tsData.ts.set(name, {values: [123], time: {hasHoles: true, values: [timeMax], valuesIndex: null}, labels: new Map(), aggregations: new Map(), step: queryIntervalMs});
     }
   }
 }
@@ -139,7 +154,7 @@ function detectHoles(ts: TimeSeries): { hasHoles: boolean, holeThreshold: number
   const holeThreshold = queryIntervalMs * 2 - Math.ceil(queryIntervalMs * .1)
 
   if (!ts.time.values || ts.time.values.length < 2) {
-    return { hasHoles: false, holeThreshold: holeThreshold };
+    return { hasHoles: true, holeThreshold: holeThreshold };
   }
 
   // Calculate the hole threshold (2x the query interval)
@@ -225,7 +240,7 @@ export function seriesTransform(series: any[], panelTimeMin: number, panelTimeMa
         });
       }
       // Embed a time shallow copy against each ts in the frame and export to holder
-      tsTime = tsTime || {values: [0], valuesIndex: null};
+      tsTime = tsTime || {values: [panelTimeMax], valuesIndex: null};
       for (const [name, ts] of Object.entries<any>(tsNamed)) {
           ts.time = tsTime;
           timeSeries.set(name, ts);

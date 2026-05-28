@@ -33,7 +33,6 @@ export type Link = {
   url: string;
   params: string | Object | undefined;
   sameTab: boolean | undefined;
-  sameDashboard: boolean | undefined;
 };
 
 export type ClickActions = {
@@ -55,6 +54,8 @@ export type TestConfig = {
   testDataExtendedZero: boolean | undefined;
   testDataStringData: boolean | undefined;
   testDataNoTime: boolean | undefined;
+  testDataHoleData: boolean | undefined;
+  testDataInstantData: boolean | undefined;
 };
 
 export type FlowValueMapping = {
@@ -70,6 +71,7 @@ export interface DataRefDrive {
   dataRef: string | undefined;
   bespokeDataRef: string | undefined;
   datapoint: DatapointMode | undefined;
+  noValue: number |string | null | undefined;
 };
 
 export type PanelConfigCellLabel = DataRefDrive & {
@@ -237,9 +239,10 @@ export type PanelConfig = {
   cells: Map<string, PanelConfigCell>;
   cellColorMappings: CellColorMappings;
   highlighter: PanelConfigHighlighter;
+  noValue: number |string | undefined;
 };
 
-export function panelConfigFactory(config: any) {
+export function panelConfigFactory(config: any, options: any = {}) {
   config = config || {};
 
   // Create the cell map
@@ -289,6 +292,7 @@ export function panelConfigFactory(config: any) {
     cellLabelDecimalPoints: (typeof config.cellLabelDecimalPoints === 'undefined') ? 0 : config.cellLabelDecimalPoints,
     cells: cells,
     highlighter: highlighter,
+    noValue: config.noValue || options.noValue || undefined,
   } as PanelConfig;
 }
 

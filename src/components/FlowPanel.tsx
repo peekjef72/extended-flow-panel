@@ -16,7 +16,7 @@ import { colorLookup, constructGrafanaVariables, constructUrl, flowDebug, getIns
 import { TooltipTrigger, TooltipTriggerHandle, TooltipTriggerConfig } from "components/TooltipTrigger"
 import { addHook, sanitize } from 'dompurify';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-import { CellBespokeHandler, NamespacedData } from './bespokeDriver';
+import { NamespacedData } from './bespokeDriver';
 
 interface Props extends PanelProps<FlowOptions> {}
 
@@ -82,7 +82,7 @@ const getStyles = () => {
 
 function clickHandlerFactory(
   svgHolderRef: React.MutableRefObject<SvgHolder | undefined>,
-  // svgAttribs: SvgAttribs,
+  svgAttribs: SvgAttribs,
   linkVariables: Map<string, string>,
   driveHighlighter: (selectionNew: string | undefined) => void,
   clickCellNameLast: React.MutableRefObject<string | undefined>
@@ -92,7 +92,6 @@ function clickHandlerFactory(
       const element = event.target as HTMLElement;
       if (!svgHolderRef.current)
         return;
-      const svgAttribs = svgHolderRef.current.attribs;
       const elementAttribs = svgAttribs.elementAttribs;
       const attribs = elementAttribs.get(element.id);
       const clickActions = attribs?.clickActions;
@@ -108,7 +107,16 @@ function clickHandlerFactory(
         // The 'off' set is optional. If not defined every click is 'on'
         const variableSet = (clickOn ? clickActions.grafanaVariables.on : clickActions.grafanaVariables.off) || clickActions.grafanaVariables.on;
         if (variableSet) {
-          const grafanaVariables = constructGrafanaVariables(variableSet, attribs, getTemplateSrv())
+          let store: NamespacedData | undefined
+          if (clickCellName) {
+            const cell = svgAttribs.cells.get(clickCellName);
+            if (cell !== undefined) {
+              store = svgHolderRef.current.namespacedData.get(clickCellName)
+              // console.log("clickHandlerFactory(): store:", store);
+            }
+          }
+          const grafanaVariables = constructGrafanaVariables(variableSet, attribs, getTemplateSrv(), store)
+          // console.log("clickHandlerFactory(): grafanaVariables:", grafanaVariables);
           locationService.partial(grafanaVariables, true);
         }
       }
@@ -121,74 +129,60 @@ function clickHandlerFactory(
       // Drive link
       const link = attribs?.link;
       if (link) {
-        if (!attribs) {
-          return;
+        let store: NamespacedData | undefined
+        if (clickCellName) {
+          const cell = svgAttribs.cells.get(clickCellName);
+          if (cell !== undefined) {
+            store = svgHolderRef.current.namespacedData.get(clickCellName)
+            // console.log("clickHandlerFactory(): store:", store);
+          }
         }
-        const cell  = svgAttribs.cells.get(attribs.name);
-        if (!cell) { return; }
-        // console.log("clickHandlerFactory(): cell:", cell);
-        let bespokeVariables = new Map<string, string>([]);
-        if (cell?.cellProps.bespokeDataRef) {
-          bespokeVariables.set('cell.bespokeDataRef', cell.cellProps.bespokeDataRef);
-        }
-        svgAttribs.bespokeHandlers.forEach((handler: CellBespokeHandler) => {
-          const store = handler.clientState;
-
-          // Create the store
-          if (cell.cellIdShort !== store.namespace) {
-            return;
-          }
-          // for (const [constantKey, value] of store.constants) {
-          //   bespokeVariables.set(`cell.bespoke.constant.${constantKey}`, value);
-          // }
-          if (svgHolderRef.current) {
-            const namespacedData = svgHolderRef.current.namespacedData;
-            console.log("clickHandlerFactory(): bespokeVariables before handler:", namespacedData);
-            if (namespacedData.has(store.namespace)) {
-              const data = namespacedData.get(store.namespace) as Object;
-              if (data) {
-                for ( const [key, value] of Object.entries(data) ){
-                  if ( ['aggregations', 'data', 'labels', 'utils'].includes(key) ) continue
-
-                  if (typeof value === 'object' && value !== null && value.value !== undefined) {
-                    bespokeVariables.set(`cell.bespoke.${key}`, String(value['value']));
-                  }
-                }
-              }
-            }
-          }
-        });
-        console.log("clickHandlerFactory(): bespokeVariables:", bespokeVariables);
-        let sameTarget = !event.ctrlKey && !event.shiftKey;
-
-        if (link.sameDashboard && sameTarget) {
-          const raw_params = link.params;
-          let updated = false
-          if( typeof(raw_params) === 'object') {
-            for (const [k, v] of Object.entries(raw_params)) {
-              let varRec: Record<string, string> = {};
-              const value = v as string;
-              const key = `var-${k}`;
-              varRec[key] = value;
-              locationService.partial(varRec, true);
-              updated = true;
-            }
-            if(updated) {
-              locationService.reload();
-            }
-          }
-        } else {
-          const url = constructUrl(link, attribs, linkVariables, bespokeVariables, getTemplateSrv());
-          if (url) {
-            console.log("clickHandlerFactory(): url:", url);
-            if (link.sameTab && sameTarget) {
-              window.open(url, '_self');
-            } else {
-              window.open(url, '_blank');
-            }
-          }
+        const url = constructUrl(link, attribs, linkVariables, getTemplateSrv(), store);
+        if (url) {
+          const sameTarget = link.sameTab && !event.ctrlKey && !event.shiftKey;
+          window.open(url, (sameTarget ? '_self' : undefined));
         }
       }
+
+      // Drive link
+      // const link = attribs?.link;
+      // if (link) {
+      //   const cell  = svgAttribs.cells.get(attribs.name);
+      //   if (!cell) { return; }
+      //   // console.log("clickHandlerFactory(): cell:", cell);
+      //   let bespokeVariables = new Map<string, string>([]);
+      //   if (cell?.cellProps.bespokeDataRef) {
+      //     bespokeVariables.set('cell.bespokeDataRef', cell.cellProps.bespokeDataRef);
+      //   }
+      //   svgAttribs.bespokeHandlers.forEach((handler: CellBespokeHandler) => {
+      //     const store = handler.clientState;
+
+      //     // Create the store
+      //     if (cell.cellIdShort !== store.namespace) {
+      //       return;
+      //     }
+      //     // for (const [constantKey, value] of store.constants) {
+      //     //   bespokeVariables.set(`cell.bespoke.constant.${constantKey}`, value);
+      //     // }
+      //     if (svgHolderRef.current) {
+      //       const namespacedData = svgHolderRef.current.namespacedData;
+      //       console.log("clickHandlerFactory(): bespokeVariables before handler:", namespacedData);
+      //       if (namespacedData.has(store.namespace)) {
+      //         const data = namespacedData.get(store.namespace) as Object;
+      //         if (data) {
+      //           for ( const [key, value] of Object.entries(data) ){
+      //             if ( ['aggregations', 'data', 'labels', 'utils'].includes(key) ) continue
+
+      //             if (typeof value === 'object' && value !== null && value.value !== undefined) {
+      //               bespokeVariables.set(`cell.bespoke.${key}`, String(value['value']));
+      //             }
+      //           }
+      //         }
+      //       }
+      //     }
+      //   });
+      //   console.log("clickHandlerFactory(): bespokeVariables:", bespokeVariables);
+      //   let sameTarget = !event.ctrlKey && !event.shiftKey;
     }
   }
 }
@@ -334,8 +328,8 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     setSiteConfig(undefined);
     loadSvg(subSourceDataUrlTokens(options.svg), setSvgStr, setVariableIdsSvg);
     loadYaml(subSourceDataUrlTokens(options.siteConfig), (config) => {setSiteConfig(siteConfigFactory(config))}, setVariableIdsSite);
-    loadYaml(subSourceDataUrlTokens(options.panelConfig), (config) => {setPanelConfig(panelConfigFactory(config))}, setVariableIdsPanel);
-  }, [options.svg, options.panelConfig, options.siteConfig, actDynamicUrlCtr]);
+    loadYaml(subSourceDataUrlTokens(options.panelConfig), (config) => {setPanelConfig(panelConfigFactory(config, options))}, setVariableIdsPanel);
+  }, [options.svg, options.panelConfig, options.siteConfig, options.noValue, actDynamicUrlCtr]);
 
   //---------------------------------------------------------------------------
   // Monitor for url changes
@@ -380,7 +374,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
         const state = highlighterState(selection, panelConfig.highlighter)
         setHighlighterSelection(state);
       }
-      clickHandlerRef.current = clickHandlerFactory(svgHolderRef, panelConfig.linkVariables, driveHighlighter, clickCellNameLast);
+      clickHandlerRef.current = clickHandlerFactory(svgHolderRef, svgAttribs, panelConfig.linkVariables, driveHighlighter, clickCellNameLast);
 
       driveHighlighter(options.highlighterSelection);
       mouseOverHandlerRef.current = tooltipHandlerFactory(
@@ -418,7 +412,7 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
   let tsData = instrument('transform', seriesTransform)(dataFrames, timeMin, timeMax, panelConfig?.dataRefTransform, queryIntervalMs);
   
   if (options.testDataEnabled) {
-    instrument('seriesExtend', seriesExtend)(tsData, panelConfig?.test);
+    instrument('seriesExtend', seriesExtend)(tsData, panelConfig?.test, queryIntervalMs);
   }
   
   instrument('seriesInterpolate', seriesInterpolate)(tsData, timeSliderScalarRef.current);
@@ -445,14 +439,13 @@ export const FlowPanel: React.FC<Props> = ({ options, data, width, height, timeZ
     // Update the svg with current time-series and variable settings
     // console.log("flowPanel:instrument() launch svgUpdate()")
     instrument('svgUpdate', svgUpdate)(
-      svgHolder,
+      svgHolderRef,
       tsData,
       highlighterSelection,
       animationsEnabled,
       setTooltipContentRef.current,
       tooltipContentRef,
       tooltipElementIdRef,
-      options.noValue,
     );
   }
   const svgElement = (svgHolder ? svgHolder.doc : svgDocBlankRef.current).childNodes[0] as HTMLElement;

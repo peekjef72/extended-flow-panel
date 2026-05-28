@@ -1,4 +1,4 @@
-import { DatapointMode, PanelConfigCell } from 'components/Config';
+import { DatapointMode, DataRefDrive, PanelConfigCell } from 'components/Config';
 import { BespokeStateHolder, getCellValue, GetCellValueType} from './SvgUpdater';
 import { MathNode, parse } from 'mathjs'
 import { TimeSeriesData } from './TimeSeries';
@@ -211,17 +211,61 @@ function grafanaVariablesReplace(str: string) {
 function convertToNumber(str: string) {
   return Number(str)
 }
+
+function isNullOrUndefined(value: any) {
+  if (typeof value === 'number') {
+    if (isNaN(value)) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+  return value === null || value === undefined;
+}
+
+// Overload 1: Odd number of arguments (1 value + N pairs + 1 default value) -> Valid
+function decode<V, T, R, D>(
+  value: V,
+  ...args: [...pairs: (T | R)[], defaultValue: D]
+): R | D;
+
+// Overload 2: Safety check to prevent an even number of arguments (missing the default value)
+function decode(value: any, ...args: any[]): never;
+
+// --- Actual Implementation ---
+function decode(value: any, ...args: any[]): any {
+  // The last element is ALWAYS the default value
+  const defaultValue = args[args.length - 1];
+  
+  // Loop through the remaining arguments two by two (test condition and its return value)
+  // We stop at args.length - 1 to exclude the default value from the loop
+  for (let i = 0; i < args.length - 1; i += 2) {
+    const testValue = args[i];
+    const returnValue = args[i + 1];
+
+// Object.is safely evaluates NaN, null, and undefined matching
+    if (Object.is(value, testValue)) {
+      return returnValue;
+    }
+  }
+
+  // If no pair matched, return the default value
+  return defaultValue;
+}
+
 function clientExposedUtils(highlighterSelection: string) {
   return {
     log: flowDebug().info,
     "Number": convertToNumber,
+    "decode": decode,
+    "isNull": isNullOrUndefined,
     variablesReplace: grafanaVariablesReplace,
     highlighterSelection: highlighterSelection,
     highlighterState: 'Ambient',
   }
 }
 
-export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSeriesData, highlighterSelection: string | undefined, noValue: string | null) {
+export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSeriesData, highlighterSelection: string | undefined, noValue: number | string | null | undefined) {
   const namespacedData  = new Map<string, NamespacedData>();
   let current_ts = 0;
   let count_ts = 0 ;
@@ -246,7 +290,7 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
     const bespokeDataDatapoint = handler.clientState.datapoint;
     handler.clientState.dataRefs.forEach((dataRef) => {
       if (typeof dataStore.data[dataRef] === 'undefined') {
-        const drive = {dataRef: dataRef, bespokeDataRef: undefined, datapoint: bespokeDataDatapoint};
+        const drive = {dataRef: dataRef, bespokeDataRef: undefined, datapoint: bespokeDataDatapoint, noValue: noValue} as DataRefDrive;
         const dataValue = getCellValue(drive, tsData, null);
         // Replace null value with noValue if defined
         dataStore.data[dataRef] = (dataValue.value === null && noValue !== null) ? noValue : dataValue.value;
@@ -272,7 +316,12 @@ export function attribDriverManager(cbh: CellBespokeHandler[], tsData: TimeSerie
     if (!namespaceUpdated.has(namespace)) {
       try {
         handler.clientState.formulas.forEach((formula) => {
-          formula.evaluate(dataStore);
+          try {
+            formula.evaluate(dataStore);
+          }
+          catch (err) {
+            flowDebug().warn('Error occurred calculating bespoke formulas for', formula.toString(), 'error =', err);
+          }
         });
       }
       catch (err) {

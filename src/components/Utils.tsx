@@ -2,7 +2,7 @@ import { GrafanaTheme2, colorManipulator } from '@grafana/data';
 import { SvgAttribs, SvgCell, SvgElementAttribs } from 'components/SvgUpdater'
 import { Background, ColorGradientMode, HighlightFactors, Link, PanelConfigCellColor, ThresholdNumber, ThresholdPattern, VariableThresholdScalars } from 'components/Config';
 import { HighlightState } from './Highlighter';
-import { locationService, TemplateSrv } from '@grafana/runtime';
+import { TemplateSrv } from '@grafana/runtime';
 
 
 export type CellIdMaker = () => string;
@@ -100,18 +100,28 @@ function substituteTokens(str: string, substitutions: Map<string, string>){
   return str;
 }
 
-function substituteReservedTokens(str: string, attribs: SvgElementAttribs){
+function substituteReservedTokens(str: string, attribs: SvgElementAttribs, store: any){
   const substitutions = new Map([
     ['cell.name', attribs.name],
     ['cell.dataRef', attribs.dataRef || tokenStr('cell.dataRef')],
   ]);
   
-  return substituteTokens(str, substitutions);
+  const regex = /\${cell\.bespoke\.([a-zA-Z_]\w*)}/g;
+  let match;
+  while ((match = regex.exec(str)) !== null) {
+    const varName = match[1];
+    const varValue = store[varName]?.value || undefined;
+    if (varValue !== undefined) {
+      str = str.replace(tokenStr(`cell.bespoke.${varName}`), varValue);
+    }
+  }
+  return str = substituteTokens(str, substitutions);
 }
 
-export function constructGrafanaVariables(grafanaVariables: Object, attribs: SvgElementAttribs, templateSrv: TemplateSrv) {
+export function constructGrafanaVariables(grafanaVariables: Object, attribs: SvgElementAttribs, templateSrv: TemplateSrv, store: any) {
   const valSubst = (val: string) => {
-    return templateSrv.replace(substituteReservedTokens(val, attribs));
+    let str =substituteReservedTokens(val, attribs, store);
+    return templateSrv.replace(str);
   };
 
   let vars: {[key: string]: string} = {}
@@ -119,46 +129,21 @@ export function constructGrafanaVariables(grafanaVariables: Object, attribs: Svg
       val = Array.isArray(val)? val.map((v) => valSubst(v)) : valSubst(val);
       vars[`var-${key}`] = val;
   });
+
   return vars;
 }
 
-export function constructUrl(link: Link, attribs: SvgElementAttribs, linkVariables: Map<string, string>, bespokeVariables: Map<string, string>, templateSrv: TemplateSrv) {
+export function constructUrl(link: Link, attribs: SvgElementAttribs, linkVariables: Map<string, string>, templateSrv: TemplateSrv, store: any) {
   // Substitute tokens
-  let url;
-  if (link.url === undefined) {
-    const urlObj = locationService.getLocation();
-    url = urlObj.pathname + urlObj.search + urlObj.hash;
-  } else { 
-    url = link.url.trim();
-  }
-  url = substituteTokens(url, linkVariables);
-  url = substituteTokens(url, bespokeVariables);
-  url = substituteReservedTokens(url, attribs);
+  let url = substituteTokens(link.url, linkVariables);
+  url = substituteReservedTokens(url, attribs, store);
 
   // Generate url
   url = createUrl(templateSrv.replace(url)) || "";
 
   // Append window args
   if (url.length) {
-    const raw_params = link.params;
-
-    if( typeof(raw_params) === 'object') {
-      let updated = false
-      if( typeof(raw_params) === 'object') {
-        for (const [k, v] of Object.entries(raw_params)) {
-          let varRec: Record<string, string> = {};
-          const value = v as string;
-          const key = `var-${k}`;
-          varRec[key] = value;
-          locationService.partial(varRec, true);
-          updated
-        }
-        if(updated) {
-          url = locationService.getLocation()
-        }
-      }
-    }
-    else if (typeof(link.params) === 'string' && link.params === 'time') {
+    if (link.params === 'time') {
       const urlParams = new URLSearchParams(window.location.search);
       const from = urlParams.get('from');
       const to = urlParams.get('to');
